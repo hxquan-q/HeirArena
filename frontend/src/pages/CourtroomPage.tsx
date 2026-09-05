@@ -18,6 +18,11 @@ import FamilyGraph from '../components/panels/FamilyGraph'
 import LegalPanel from '../components/panels/LegalPanel'
 import PredictionCard from '../components/panels/PredictionCard'
 import TranscriptPanel from '../components/panels/TranscriptPanel'
+import SeatBriefPanel from '../components/seat/SeatBriefPanel'
+import SeatDock from '../components/seat/SeatDock'
+import SeatToggle from '../components/seat/SeatToggle'
+import { SpeechCardChips } from '../components/seat/SpeechCards'
+import { applyCardToDraft, emptySeatDraft } from '../components/seat/draft'
 import VerdictPanel from '../components/panels/VerdictPanel'
 import CharacterPortrait from '../components/scene/CharacterPortrait'
 import CoinRain from '../components/scene/CoinRain'
@@ -32,7 +37,7 @@ import { useCourt } from '../store/useCourt'
 
 const VoxelStage = lazy(() => import('../components/scene3d/VoxelStage'))
 
-type Tab = 'graph' | 'legal' | 'transcript' | 'verdict'
+type Tab = 'graph' | 'legal' | 'transcript' | 'verdict' | 'seat'
 const TABS: { id: Tab; label: string; icon: PxlKitData }[] = [
   { id: 'transcript', label: '庭审记录', icon: MessageSquare },
   { id: 'graph', label: '关系图', icon: UserGroup },
@@ -56,6 +61,7 @@ export default function CourtroomPage() {
   const [graphMode, setGraphMode] = useState<'family' | 'camp'>('camp')
   const [pausing, setPausing] = useState(false)
   const [highlightTurnId, setHighlightTurnId] = useState<string | null>(null)
+  const [draft, setDraft] = useState(emptySeatDraft)
   const { toast } = useToast()
 
   /* 幽灵玩家的存档：显灵能量 / 看过的证据 */
@@ -105,6 +111,26 @@ export default function CourtroomPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.verdict])
+
+  const jumpedDebrief = useRef(false)
+  const jumpedAwait = useRef<string | null>(null)
+  useEffect(() => {
+    jumpedDebrief.current = false
+    jumpedAwait.current = null
+    setDraft(emptySeatDraft())
+  }, [id])
+  useEffect(() => {
+    if (!s.seat || !s.debrief || jumpedDebrief.current) return
+    jumpedDebrief.current = true
+    setTab('seat')
+  }, [s.debrief, s.seat])
+  useEffect(() => {
+    if (!s.seat || !s.awaiting) return
+    if (jumpedAwait.current === s.awaiting.turn_key) return
+    jumpedAwait.current = s.awaiting.turn_key
+    setDraft(emptySeatDraft())
+    setTab('seat')
+  }, [s.awaiting, s.seat])
 
   // 服务端推送的庭审公告 → 像素 toast；只推送尚未展示过的
   const shownNotice = useRef(0)
@@ -185,6 +211,14 @@ export default function CourtroomPage() {
     return 3 + rounds
   })()
 
+  const tabs = useMemo((): { id: Tab; label: string; icon: PxlKitData }[] => {
+    if (!s.seat) return TABS
+    return [
+      TABS[0],
+      { id: 'seat', label: '入局', icon: Star },
+      ...TABS.slice(1),
+    ]
+  }, [s.seat])
   const deceasedIds = useMemo(() => new Set(s.caseData?.members.filter((m) => m.deceased).map((m) => m.id) ?? []), [s.caseData])
   const debaters = s.agents.filter((a) => a.kind !== 'judge' && !deceasedIds.has(a.id))
 
@@ -241,7 +275,8 @@ export default function CourtroomPage() {
               {s.mode === 'llm' ? s.model : '剧本演示'}
             </span>
             {/* 暂停 / 续庭：后端 LangGraph interrupt 在下一节点生效，恢复后从 Checkpointer 继续 */}
-            {!s.done && s.connected && (
+            {s.seat && !s.done && <SeatToggle sessionId={id} />}
+            {!s.done && s.connected && !s.awaiting && (
               <button
                 className={`chip px-2.5 py-1 transition ${s.paused ? 'border-emerald-400/25 bg-emerald-400/8 text-emerald-300 hover:bg-emerald-400/14' : 'text-ink-300 hover:border-white/15 hover:text-ink-100'}`}
                 disabled={pausing}
@@ -260,7 +295,7 @@ export default function CourtroomPage() {
               {s.connected && !s.done
                 ? <AnimatedPxlKitIcon icon={PulsingDot} size={12} appearance="tinted" color="#34d399" aria-label="直播中" />
                 : <span className={`h-1.5 w-1.5 rounded-full ${s.done ? 'bg-ink-400' : 'bg-amber-400'}`} />}
-              <span className="hidden sm:inline">{s.done ? '已闭庭' : s.paused ? '休庭' : s.connected ? '直播中' : '连接中'}</span>
+              <span className="hidden sm:inline">{s.done ? '已闭庭' : s.awaiting ? '等你发言' : s.paused ? '休庭' : s.connected ? '直播中' : '连接中'}</span>
             </span>
           </div>
         </div>
@@ -402,10 +437,19 @@ export default function CourtroomPage() {
             </div>
           </div>
 
-          {/* 显灵行动栏：玩家是逝者的幽灵 */}
-          <ActionBar sessionId={id} caseData={s.caseData} agents={s.agents} turns={s.turns} done={!!s.done}
-            onPickEvidence={() => setDrawer({ open: true, pick: true })}
-            pickedEvidence={pickedEvidence} onPickedHandled={() => setPickedEvidence(null)} />
+          {s.seat ? (
+            <SeatDock
+              sessionId={id}
+              draft={draft}
+              onDraftChange={setDraft}
+              onOpenBrief={() => setTab('seat')}
+              cardsSlot={s.awaiting ? <SpeechCardChips cards={s.cards} onUse={(card) => setDraft((d) => applyCardToDraft(d, card))} /> : undefined}
+            />
+          ) : (
+            <ActionBar sessionId={id} caseData={s.caseData} agents={s.agents} turns={s.turns} done={!!s.done}
+              onPickEvidence={() => setDrawer({ open: true, pick: true })}
+              pickedEvidence={pickedEvidence} onPickedHandled={() => setPickedEvidence(null)} />
+          )}
         </section>
 
         {/* 右栏：终局预测 + 卷宗页签 */}
@@ -415,7 +459,7 @@ export default function CourtroomPage() {
               focusIssues={s.focusIssues} phase={s.phase} />
           )}
           <div className="flex border-b border-white/7 bg-black/10 px-1 pt-1">
-            {TABS.map((t) => {
+            {tabs.map((t) => {
               const on = tab === t.id
               return (
                 <button key={t.id} onClick={() => setTab(t.id)} aria-selected={on}
@@ -429,6 +473,7 @@ export default function CourtroomPage() {
                     <span className="absolute top-1 right-1.5 rounded-full bg-white/8 px-1 font-mono text-[8px] leading-4 text-ink-300">{s.relationLog.length}</span>
                   )}
                   {t.id === 'verdict' && s.verdict && !on && <span className="absolute top-2 right-[18%] h-1.5 w-1.5 rounded-full bg-gold-400 shadow-[0_0_8px_#e9be6f]" />}
+                  {t.id === 'seat' && s.debrief && !on && <span className="absolute top-2 right-[18%] h-1.5 w-1.5 rounded-full bg-gold-400 shadow-[0_0_8px_#e9be6f]" />}
                   {on && <motion.span layoutId="tab" className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-gold-400 shadow-[0_0_10px_rgba(233,190,111,.55)]" />}
                 </button>
               )
@@ -460,6 +505,8 @@ export default function CourtroomPage() {
                   ) : tab === 'transcript' ? (
                     <TranscriptPanel turns={s.turns} agents={s.agents} ghosts={s.ghosts} decedent={s.caseData.decedent_name}
                       focusIssues={s.focusIssues} highlightTurnId={highlightTurnId} />
+                  ) : tab === 'seat' ? (
+                    <SeatBriefPanel onJumpToTurn={jumpToTurn} onUseCard={(card) => setDraft((d) => applyCardToDraft(d, card))} />
                   ) : (
                     <VerdictPanel verdict={s.verdict} caseData={s.caseData} agents={s.agents} articleShort={s.articleShort} done={s.done}
                       sessionId={id} onRestart={() => nav('/')} turns={s.turns} betId={bet} onJumpToTurn={jumpToTurn} />
@@ -473,7 +520,7 @@ export default function CourtroomPage() {
 
       {s.caseData && (
         <EvidenceDrawer open={drawer.open} onOpenChange={(open) => setDrawer((d) => ({ ...d, open }))} cards={evidence} caseData={s.caseData}
-          focusId={drawer.focusId} pickMode={drawer.pick} pickCost={SKILLS.find((k) => k.id === 'present')?.cost}
+          focusId={drawer.focusId} pickMode={s.seat ? false : drawer.pick} pickCost={SKILLS.find((k) => k.id === 'present')?.cost}
           onPick={(card) => { setDrawer({ open: false, pick: false }); setPickedEvidence(card) }} onJumpToTurn={jumpToTurn} />
       )}
     </div>
