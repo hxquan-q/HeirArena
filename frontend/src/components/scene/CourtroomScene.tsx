@@ -95,6 +95,17 @@ export default function CourtroomScene() {
   const gavelVisible = gavelAt !== null && now - gavelAt < 2600
   const recentGhost = ghosts.length && now - ghosts[ghosts.length - 1].ts < 8000 ? ghosts[ghosts.length - 1] : null
 
+  // 每个座位上的人保留自己最后一句（30 秒内），像参考剧本杀里全场同时冒泡
+  const whisperOf = useMemo(() => {
+    const m = new Map<string, string>()
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const t = turns[i]
+      if (!t.done || m.has(t.agent_id) || now - t.ts > 30_000 || !t.text) continue
+      m.set(t.agent_id, t.text)
+    }
+    return m
+  }, [turns, now])
+
   // 阶段切换横幅：新阶段出现时闪现约 2 秒
   const [splash, setSplash] = useState<{ label: string; key: number } | null>(null)
   const prevPhaseKey = useRef<string | null>(null)
@@ -123,7 +134,8 @@ export default function CourtroomScene() {
           )}
           {debaters.map((a, i) => (
             <Agent key={a.id} agent={a} pos={posOf(a.id)} scale={scale} size={a.id === speakerId ? size * 1.1 : size}
-              status={statuses[a.id] ?? 'idle'} reaction={reactions[a.id]} petKind={petKind(a)} showPlate index={i + 1} />
+              status={statuses[a.id] ?? 'idle'} reaction={reactions[a.id]} petKind={petKind(a)} showPlate index={i + 1}
+              whisper={a.id !== speakerId && bubbleTurn?.agent_id !== a.id ? whisperOf.get(a.id) : undefined} />
           ))}
         </div>
       )}
@@ -274,9 +286,11 @@ interface AgentProps {
   showPlate: boolean
   /** 入场顺序：开庭时按此错峰落座 */
   index: number
+  /** 这个人最近说的一句，头顶小气泡 */
+  whisper?: string
 }
 
-function Agent({ agent, pos, scale, size, status, reaction, petKind, showPlate, index }: AgentProps) {
+function Agent({ agent, pos, scale, size, status, reaction, petKind, showPlate, index, whisper }: AgentProps) {
   const px = size * scale
   const x = pos.x * scale - px / 2
   const y = pos.y * scale - px * 1.25
@@ -300,6 +314,16 @@ function Agent({ agent, pos, scale, size, status, reaction, petKind, showPlate, 
         )}
         <CharacterPortrait agent={agent} status={status} size={px} petKind={petKind} />
         <AnimatePresence>
+          {whisper && !reaction && (
+            <motion.div key={whisper} initial={{ opacity: 0, y: 6, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }}
+              className="pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap"
+              style={{ fontSize: Math.max(10, 11 * scale) }}>
+              <span className="relative block border-2 bg-ink-950/90 px-2 py-0.5 text-ink-100 shadow-[2px_2px_0_rgba(0,0,0,.6)]" style={{ borderColor: `${agent.color}99` }}>
+                {whisper.length > 16 ? `${whisper.slice(0, 16)}…` : whisper}
+                <span className="absolute -bottom-[7px] left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-r-2 border-b-2 bg-ink-950/90" style={{ borderColor: `${agent.color}99` }} />
+              </span>
+            </motion.div>
+          )}
           {reaction && (
             <motion.div key={reaction.ts} className="absolute -top-2 left-1/2 -translate-x-1/2 text-2xl animate-rise"
               style={{ fontSize: Math.max(18, px * 0.28) }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>

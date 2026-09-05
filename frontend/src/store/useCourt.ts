@@ -9,6 +9,7 @@ export interface PhaseState {
   phase: Phase
   round: number
   label: string
+  ts: number
 }
 
 export interface GhostMessage {
@@ -30,13 +31,19 @@ interface CourtState {
   phaseHistory: PhaseState[]
   focusIssues: string[]
   paused: boolean
+  /** 收到 session_start 的时刻，用于头部计时 */
+  startedAt: number | null
   turns: Turn[]
   activeTurnId: string | null
+  /** 舞台上正在闪的连线（几秒后消失） */
   relations: RelationEdge[]
+  /** 全场所有攻击/结盟记录（永不删除），供阵营网络与时间线使用 */
+  relationLog: RelationEdge[]
   reactions: Record<string, Reaction>
   ghosts: GhostMessage[]
   notices: { text: string; ts: number }[]
   verdict: Verdict | null
+  verdictAt: number | null
   gavelAt: number | null
   done: DoneStats | null
   error: string | null
@@ -47,9 +54,9 @@ interface CourtState {
 
 const initial = {
   sessionId: null, connected: false, mode: 'mock', model: 'scripted', agents: [], caseData: null, legal: null,
-  articleShort: {}, statuses: {}, phase: null, phaseHistory: [], focusIssues: [], paused: false, turns: [],
-  activeTurnId: null, relations: [],
-  reactions: {}, ghosts: [], notices: [], verdict: null, gavelAt: null, done: null, error: null,
+  articleShort: {}, statuses: {}, phase: null, phaseHistory: [], focusIssues: [], paused: false, startedAt: null, turns: [],
+  activeTurnId: null, relations: [], relationLog: [],
+  reactions: {}, ghosts: [], notices: [], verdict: null, verdictAt: null, gavelAt: null, done: null, error: null,
 }
 
 const moodTimers: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -83,11 +90,12 @@ export const useCourt = create<CourtState>((set, get) => ({
             caseData: d.case as CaseInput, legal: d.legal as LegalResult,
             articleShort: d.article_short as Record<string, string>,
             statuses: Object.fromEntries(agents.map((a) => [a.id, 'idle' as AgentStatus])),
+            startedAt: Date.now(),
           })
           break
         }
         case 'phase': {
-          const p = { phase: d.phase as Phase, round: Number(d.round), label: String(d.label) }
+          const p: PhaseState = { phase: d.phase as Phase, round: Number(d.round), label: String(d.label), ts: Date.now() }
           set((s) => ({ phase: p, phaseHistory: [...s.phaseHistory, p] }))
           sfx('phase')
           break
@@ -142,7 +150,7 @@ export const useCourt = create<CourtState>((set, get) => ({
             id: `${d.turn_id}-${d.to}`, from: String(d.from), to: String(d.to),
             kind: d.kind as 'attack' | 'ally', ts: Date.now(),
           }
-          set((s) => ({ relations: [...s.relations.slice(-5), edge] }))
+          set((s) => ({ relations: [...s.relations.slice(-5), edge], relationLog: [...s.relationLog, edge] }))
           setTimeout(() => set((s) => ({ relations: s.relations.filter((r) => r.id !== edge.id) })), 9000)
           sfx(edge.kind === 'attack' ? 'attack' : 'ally')
           break
@@ -180,7 +188,7 @@ export const useCourt = create<CourtState>((set, get) => ({
           sfx('gavel')
           break
         case 'verdict':
-          set({ verdict: d as unknown as Verdict })
+          set({ verdict: d as unknown as Verdict, verdictAt: Date.now() })
           sfx('verdict')
           break
         case 'done':
