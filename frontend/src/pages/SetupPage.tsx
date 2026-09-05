@@ -1,12 +1,13 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { PxlKitIcon } from '@pxlkit/core'
-import { PixelEmptyState, PixelSegmented, PixelSwitch, PixelTooltip, useMediaQuery } from '@pxlkit/ui-kit'
-import { ArrowLeft, ArrowRight, Check, Cpu, Gavel, Landmark, Plus, Scale, Trash2, Users, Wallet } from 'lucide-react'
+import { PixelAlertDialog, PixelEmptyState, PixelSegmented, PixelSwitch, PixelTooltip, useMediaQuery } from '@pxlkit/ui-kit'
+import { ArrowLeft, ArrowRight, Check, Cpu, Gavel, Landmark, Plus, Scale, Target, Trash2, Users, Wallet } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, type ServerConfig } from '../api/client'
 import ModelSelect from '../components/ModelSelect'
 import ProviderManager from '../components/ProviderManager'
+import SeatChapter from '../components/seat/SeatChapter'
 import CharacterPortrait from '../components/scene/CharacterPortrait'
 import CourtRecord, { ShareBar } from '../components/ui/CourtRecord'
 import TopBar from '../components/ui/TopBar'
@@ -14,6 +15,7 @@ import { Gavel as PixelGavel } from '../components/icons/pixel'
 import { ASSET_TYPES, PERSONALITIES, PRESETS, RELATIONS, RELATION_LABEL } from '../data/presets'
 import { describeRef, useProviders } from '../hooks/useProviders'
 import { sfx } from '../lib/sfx'
+import { memberAgent, petKindOf } from '../lib/agentSpec'
 import { cleanDraft, isDraftValid, useCaseDraft, useLegalPreview } from '../store/useCaseDraft'
 import type { AgentSpec, Asset, Member } from '../types'
 
@@ -26,9 +28,7 @@ const FLAGS: { key: keyof Member; label: string; hint: string }[] = [
   { key: 'deceased', label: '先于逝者去世', hint: '第1128条 由其子女代位继承' },
   { key: 'disqualified', label: '丧失继承权', hint: '第1125条（虐待、伪造遗嘱等）' },
 ]
-const petKindOf = (name: string): 'cat' | 'dog' => (/狗|犬|汪/.test(name) ? 'dog' : 'cat')
-
-type StepId = 'file' | 'assets' | 'roster'
+type StepId = 'file' | 'assets' | 'roster' | 'seat'
 interface Chapter {
   id: StepId
   roman: string
@@ -38,22 +38,31 @@ interface Chapter {
   accent: string
   icon: ReactNode
 }
-/* 选剧本已由大厅承担；卷宗页只剩三卷：立案 → 清点 → 传唤 */
+/* 选剧本已由大厅承担；卷宗页四卷：立案 → 清点 → 传唤 → 入局 */
 const CHAPTERS: Chapter[] = [
   { id: 'file', roman: 'I', label: '立案', title: '登记案件背景', desc: '逝者 · 故事 · 规则', accent: '#e2b25a', icon: <Landmark size={15} /> },
   { id: 'assets', roman: 'II', label: '清点遗产', title: '清点遗产清单', desc: '资产 · 共同财产', accent: '#3fb27f', icon: <Wallet size={15} /> },
   { id: 'roster', roman: 'III', label: '传唤角色', title: '传唤出场角色', desc: '家人 · 关系人', accent: '#f07aa8', icon: <Users size={15} /> },
+  { id: 'seat', roman: 'IV', label: '入局', title: '选择席位与诉求', desc: '我是谁 · 诉求 · 策略', accent: '#a58bff', icon: <Target size={15} /> },
 ]
+
+function initialChapterStep(chapter: string | null): number {
+  if (chapter !== 'seat') return 0
+  const index = CHAPTERS.findIndex((item) => item.id === 'seat')
+  return index >= 0 ? index : 0
+}
 
 export default function SetupPage() {
   const nav = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [config, setConfig] = useState<ServerConfig | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState<string | null>(null)
   const [selectedMember, setSelectedMember] = useState<string | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null)
   const [showProviders, setShowProviders] = useState(false)
-  const [step, setStep] = useState(0)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [step, setStep] = useState(() => initialChapterStep(searchParams.get('chapter')))
   const tall = useMediaQuery('(min-height: 880px)', true)
   const { providers, presets, refresh: refreshProviders } = useProviders()
 
@@ -68,11 +77,20 @@ export default function SetupPage() {
   const addMember = useCaseDraft((s) => s.addMember)
   const removeAsset = useCaseDraft((s) => s.removeAsset)
   const removeMember = useCaseDraft((s) => s.removeMember)
+  const advisorModel = useCaseDraft((s) => s.advisorModel)
+  const setAdvisorModel = useCaseDraft((s) => s.setAdvisorModel)
   useLegalPreview()
 
   useEffect(() => {
     api.config().then(setConfig).catch(() => setConfig(null))
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get('chapter') !== 'seat') return
+    const next = new URLSearchParams(searchParams)
+    next.delete('chapter')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const onProvidersChanged = async () => {
     await refreshProviders()
@@ -97,6 +115,14 @@ export default function SetupPage() {
     }
   }
 
+  const requestStart = () => {
+    if (c.seat && c.seat.strategy == null) {
+      setConfirmOpen(true)
+      return
+    }
+    void start()
+  }
+
   const goStep = (next: number) => {
     const clamped = Math.max(0, Math.min(CHAPTERS.length - 1, next))
     if (clamped === step) return
@@ -108,6 +134,7 @@ export default function SetupPage() {
   const total = c.assets.reduce((s, a) => s + (Number(a.value) || 0), 0)
   const isLast = step === CHAPTERS.length - 1
   const inheritLabel = `跟随默认（${describeRef(c.default_model, providers, config?.default_model ? describeRef(config.default_model, providers) : '剧本模式')}）`
+  const advisorInherit = `跟随执行官（${describeRef(c.executor_model ?? c.default_model, providers, inheritLabel)}）`
 
   /* ── chapter bodies ─────────────────────────────────────────── */
 
@@ -209,6 +236,11 @@ export default function SetupPage() {
             遗嘱执行官（裁决）
             <ModelSelect className="mt-1" value={c.executor_model} onChange={(ref) => upd({ executor_model: ref })} providers={providers} inheritLabel={inheritLabel} />
           </label>
+          <label className="block text-ink-300">
+            军师（入局模式）
+            <ModelSelect className="mt-1" value={advisorModel} onChange={setAdvisorModel} providers={providers} inheritLabel={advisorInherit} allowMock={false} />
+          </label>
+          {!c.seat && <div className="text-[11px] text-ink-400">仅入局推演使用</div>}
           <div className="text-[11px] leading-relaxed text-ink-400">
             {overriddenCount > 0 ? `${overriddenCount} 位角色单独指定了模型；` : '在“传唤角色”卷可单独指定某人模型；'}
             未接入模型的角色会用内置剧本发言，模型出错也会自动回退。
@@ -488,6 +520,7 @@ export default function SetupPage() {
     file: renderFile,
     assets: renderAssets,
     roster: renderRoster,
+    seat: () => <SeatChapter onManageProviders={() => setShowProviders(true)} onGoFile={() => goStep(0)} />,
   }
   const ch = CHAPTERS[step]
 
@@ -510,7 +543,7 @@ export default function SetupPage() {
         }
       />
 
-      {/* chapter rail：三卷进度 + 当前卷标题，合成一条，像 RPG 的章节选择 */}
+      {/* chapter rail：四卷进度 + 当前卷标题，合成一条，像 RPG 的章节选择 */}
       <nav className="shrink-0 border-b-2 border-ink-700 bg-ink-900/80" aria-label="案卷进度">
         <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
@@ -568,7 +601,7 @@ export default function SetupPage() {
 
         {/* 羊皮纸法庭记录：卷宗速览 + 法定份额 + 火漆 + 开庭；矮屏隐藏 3D 印章以求一屏放下 */}
         <aside className="hidden min-h-0 overflow-y-auto xl:block">
-          <CourtRecord c={c} preview={preview} previewErr={previewErr} valid={valid} submitting={submitting} submitErr={submitErr} onStart={start} sigil={tall} />
+          <CourtRecord c={c} preview={preview} previewErr={previewErr} valid={valid} submitting={submitting} submitErr={submitErr} onStart={isLast ? requestStart : undefined} sigil={tall} />
         </aside>
       </main>
 
@@ -591,7 +624,7 @@ export default function SetupPage() {
           </div>
 
           {isLast ? (
-            <button className="btn-gold h-10 min-w-[150px] shrink-0 px-6 xl:hidden" disabled={!valid || submitting} onClick={start}>
+            <button className="btn-gold h-10 min-w-[150px] shrink-0 px-6 xl:hidden" disabled={!valid || submitting} onClick={requestStart}>
               <Gavel size={16} /> {submitting ? '传唤…' : '开庭'}
             </button>
           ) : (
@@ -603,6 +636,15 @@ export default function SetupPage() {
       </div>
 
       <ProviderManager open={showProviders} onClose={() => setShowProviders(false)} providers={providers} presets={presets} onChanged={onProvidersChanged} />
+      <PixelAlertDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="还没有推演策略"
+        description="AI 代理将只按人设与心愿发言，确定开庭？"
+        actionLabel="仍然开庭"
+        cancelLabel="回去推演"
+        onAction={() => { void start() }}
+      />
     </div>
   )
 }
@@ -634,23 +676,3 @@ function decedentAgent(name: string): AgentSpec {
   }
 }
 
-function memberAgent(m: Member): AgentSpec {
-  const personality = PERSONALITIES.find((p) => p.value === m.personality) ?? PERSONALITIES[0]
-  const relation = RELATIONS.find((r) => r.value === m.relation)
-  return {
-    id: m.id,
-    name: m.name,
-    role: relation?.label ?? m.relation,
-    relation: m.relation,
-    personality: m.personality,
-    personality_label: personality.label,
-    title: personality.desc,
-    color: personality.color,
-    kind: m.relation === 'pet' ? 'pet' : m.relation === 'ai_twin' ? 'ai' : 'human',
-    legal_percent: 0,
-    eligible: true,
-    wish: m.wish,
-    llm: !!m.model && m.model.provider_id !== 'mock',
-    model_label: '',
-  }
-}
