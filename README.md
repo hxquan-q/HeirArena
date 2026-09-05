@@ -111,3 +111,4 @@ cd frontend && npm run build                          # 类型检查 + 打包
 
 本项目给出的是依据《民法典》继承编计算的**参考方案**与一场娱乐化的多 Agent 模拟，不构成法律意见；真实纠纷请咨询律师或通过调解、诉讼解决。
 # HeirArena
+# HeirArena
