@@ -1,0 +1,119 @@
+import { ChevronDown, Scale } from 'lucide-react'
+import { useState } from 'react'
+import type { AgentSpec, LegalResult } from '../../types'
+
+interface Props {
+  legal: LegalResult
+  agents: AgentSpec[]
+  articleShort: Record<string, string>
+}
+
+export default function LegalPanel({ legal, agents, articleShort }: Props) {
+  const [openArticle, setOpenArticle] = useState<string | null>(null)
+  const [showSteps, setShowSteps] = useState(true)
+  const color = Object.fromEntries(agents.map((a) => [a.id, a.color]))
+  const eligible = legal.shares.filter((s) => s.eligible && s.percent > 0)
+  const others = legal.shares.filter((s) => !(s.eligible && s.percent > 0))
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="资产估值" value={`${fmt(legal.gross_total)} 万`} />
+        <Stat label="配偶析产" value={legal.community_deduction ? `-${fmt(legal.community_deduction)} 万` : '—'} hint="第1153条" />
+        <Stat label="遗产净额" value={`${fmt(legal.estate_total)} 万`} gold />
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-ink-300">
+        <Scale size={14} className="text-gold-400" />
+        适用 <b className="text-ink-100">{legal.order_used === 1 ? '第一顺序' : legal.order_used === 2 ? '第二顺序' : '无人继承'}</b>
+        法定继承（第1127条），同一顺序一般均等，依第1130条酌情多分 / 少分。
+      </div>
+
+      <div className="space-y-2">
+        {eligible.map((s) => (
+          <div key={s.member_id} className="rounded-xl border border-white/6 bg-ink-800/60 p-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: color[s.member_id] ?? '#8b93a7' }} />
+              <span className="font-semibold">{s.name}</span>
+              <span className="text-xs text-ink-400">{s.relation}{s.via ? ` · 代位 ${s.via}` : ''}</span>
+              <span className="ml-auto font-mono text-base font-bold text-gold-300">{s.percent.toFixed(1)}%</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-700">
+              <div className="h-full rounded-full" style={{ width: `${s.percent}%`, background: color[s.member_id] ?? '#d4a55a' }} />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {s.basis.map((b) => (
+                <button key={b} onClick={() => setOpenArticle(openArticle === b ? null : b)}
+                  className={`chip transition hover:border-gold-500/60 ${openArticle === b ? 'border-gold-500/60 text-gold-300' : 'text-ink-200'}`}>
+                  第{b}条 <span className="text-ink-400">{articleShort[b]}</span>
+                </button>
+              ))}
+              {s.weight !== 1 && s.weight > 0 && (
+                <span className={`chip ${s.weight > 1 ? 'text-emerald-300' : 'text-red-300'}`}>权重 ×{s.weight.toFixed(2)}</span>
+              )}
+            </div>
+            <ul className="mt-2 space-y-0.5 text-xs text-ink-300">
+              {s.notes.map((n, i) => <li key={i}>· {n}</li>)}
+            </ul>
+          </div>
+        ))}
+        {others.length > 0 && (
+          <div className="rounded-xl border border-dashed border-white/8 p-3">
+            <div className="mb-2 text-xs font-semibold text-ink-400">不参与分配 / 酌情分给</div>
+            <div className="space-y-2">
+              {others.map((s) => (
+                <div key={s.member_id} className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: color[s.member_id] ?? '#5b647a' }} />
+                    <span className="font-medium text-ink-200">{s.name}</span>
+                    <span className="text-ink-400">{s.relation}</span>
+                    {s.percent > 0 && <span className="ml-auto font-mono text-gold-300">{s.percent}%</span>}
+                    {s.basis.map((b) => (
+                      <button key={b} onClick={() => setOpenArticle(openArticle === b ? null : b)} className="chip text-[10px] text-ink-300 hover:border-gold-500/60">第{b}条</button>
+                    ))}
+                  </div>
+                  <div className="mt-0.5 pl-4 text-ink-400">{s.notes.join('；')}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {openArticle && legal.articles[openArticle] && (
+        <div className="rounded-xl border border-gold-500/30 bg-gold-500/5 p-3 text-xs leading-relaxed text-ink-200">
+          <div className="mb-1 font-semibold text-gold-300">《民法典》第{openArticle}条 · {articleShort[openArticle]}</div>
+          {legal.articles[openArticle]}
+        </div>
+      )}
+
+      <div className="rounded-xl border border-white/6">
+        <button onClick={() => setShowSteps((v) => !v)} className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold text-ink-200">
+          规则引擎计算过程
+          <ChevronDown size={14} className={`transition ${showSteps ? 'rotate-180' : ''}`} />
+        </button>
+        {showSteps && (
+          <ol className="space-y-1.5 border-t border-white/6 px-3 py-2 text-xs text-ink-300">
+            {legal.steps.map((s, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="mt-[2px] flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-ink-700 text-[10px] text-gold-300">{i + 1}</span>
+                <span>{s}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, value, hint, gold }: { label: string; value: string; hint?: string; gold?: boolean }) {
+  return (
+    <div className="rounded-xl border border-white/6 bg-ink-800/60 px-3 py-2">
+      <div className="text-[10px] text-ink-400">{label}{hint && <span className="ml-1 text-ink-600">{hint}</span>}</div>
+      <div className={`font-mono text-sm font-bold ${gold ? 'text-gold-300' : 'text-ink-100'}`}>{value}</div>
+    </div>
+  )
+}
+
+const fmt = (n: number) => (Math.abs(n) >= 100 ? n.toFixed(0) : n.toFixed(1))
