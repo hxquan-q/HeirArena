@@ -15,12 +15,14 @@ from pydantic import BaseModel, Field
 from .agents import Orchestrator, Session, build_session, export_markdown
 from .agents.court_graph import register_orchestrator, set_checkpointer
 from .agents.llm import LLMClient, LLMError
+from .seat.advisor import AdvisorUnavailable, build_strategy
 from .agents.restore import rebuild_orchestrator, rebuild_session, role_bindings_from_orch
 from .case_parser import CaseParseError, CaseParseRequest, parse_case_document
 from .config import get_settings
 from .legal import ARTICLE_SHORT, ARTICLES, compute_legal_shares
 from .models import CaseInput, ModelRef
 from .persist import init_engine, list_resumable_case_ids, persist_enabled, save_role_bindings, update_status
+from .seat import analyze, infer_goals
 from .providers import PRESETS, ProviderStore, ProviderUpsert, to_public
 
 SESSIONS: dict[str, Session] = {}
@@ -45,7 +47,7 @@ async def _setup_runtime() -> None:
             SESSIONS[session.id] = session
             ORCHESTRATORS[session.id] = orch
             register_orchestrator(orch)
-            if session.status == "running" and not session.paused:
+            if _should_autoresume(session):
                 session.task = _spawn(orch, resume=True)
         except Exception as e:  # noqa: BLE001
             print(f"[heirarena] 续庭失败 {session_id}: {e!r}")
@@ -78,6 +80,23 @@ app.add_middleware(
 
 class InterjectBody(BaseModel):
     text: str = Field(min_length=1, max_length=200)
+
+
+class SeatBody(BaseModel):
+    human: bool
+
+
+class SpeakMeta(BaseModel):
+    action: str | None = None
+    target: str | None = None
+    claims: dict[str, float] | None = None
+    admissions: list[str] = Field(default_factory=list)
+
+
+class SpeakBody(BaseModel):
+    text: str | None = Field(default=None, max_length=500)
+    meta: SpeakMeta | None = None
+    delegate: bool = False
 
 
 class TestBody(BaseModel):
@@ -166,6 +185,21 @@ async def fetch_models(provider_id: str) -> dict:
     return {"models": models, "provider": to_public(saved or p).model_dump()}
 
 
+def _prepare_seated_case(case: CaseInput) -> CaseInput:
+    seat = case.seat
+    if seat is None:
+        return case
+    _validate_ref(seat.advisor_model, "军师")
+    if seat.strategy is not None and seat.strategy.player_id != seat.player_id:
+        raise HTTPException(400, "策略包的玩家与当前席位不一致")
+    if seat.player_id not in seat.goals:
+        legal = compute_legal_shares(case)
+        goals = dict(seat.goals)
+        goals[seat.player_id] = infer_goals(case, seat.player_id, legal)
+        case = case.model_copy(update={"seat": seat.model_copy(update={"goals": goals})})
+    return case
+
+
 def _validate_ref(ref: ModelRef | None, who: str) -> None:
     if ref is None or ref.is_mock:
         return
@@ -186,6 +220,31 @@ async def articles() -> dict:
 @app.post("/api/legal/preview")
 async def legal_preview(case: CaseInput) -> dict:
     return compute_legal_shares(case).model_dump()
+
+
+@app.post("/api/seat/analyze")
+async def seat_analyze(case: CaseInput) -> dict:
+    if case.seat is None:
+        raise HTTPException(422, "缺少席位配置")
+    try:
+        return analyze(case).model_dump()
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+
+
+@app.post("/api/seat/strategy")
+async def seat_strategy(case: CaseInput) -> dict:
+    if case.seat is None:
+        raise HTTPException(422, "缺少席位配置")
+    try:
+        pack = await build_strategy(case, get_settings(), PROVIDERS)
+    except AdvisorUnavailable as error:
+        raise HTTPException(502, f"军师不可用：{str(error)[:300]}") from error
+    except LLMError as error:
+        raise HTTPException(502, f"军师模型调用失败：{str(error)[:300]}") from error
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return pack.model_dump()
 
 
 @app.post("/api/cases/parse")
@@ -210,6 +269,7 @@ async def create_session(case: CaseInput) -> dict:
         raise HTTPException(400, "至少需要一项资产")
     _validate_ref(case.default_model, "默认模型")
     _validate_ref(case.executor_model, "遗嘱执行官")
+    case = _prepare_seated_case(case)
     for m in case.members:
         _validate_ref(m.model, m.name)
     settings = get_settings()
@@ -229,11 +289,93 @@ async def create_session(case: CaseInput) -> dict:
     }
 
 
+def _should_autoresume(session: Session) -> bool:
+    return session.status == "running" and not session.paused
+
+
+def _release_orch(session_id: str) -> None:
+    s = SESSIONS.get(session_id)
+    if s is None or s.status in {"done", "error", "cancelled"}:
+        ORCHESTRATORS.pop(session_id, None)
+
+
 def _spawn(orch: Orchestrator, resume: bool = False) -> asyncio.Task:
     """启动庭审任务；终局后释放 ORCHESTRATORS 引用（Session 保留供快照，需要时可重建）。"""
     task = asyncio.create_task(orch.run(resume=resume))
-    task.add_done_callback(lambda _t, sid=orch.s.id: ORCHESTRATORS.pop(sid, None))
+    task.add_done_callback(lambda _t, sid=orch.s.id: _release_orch(sid))
     return task
+
+
+def _ensure_orch(s: Session) -> Orchestrator:
+    orch = ORCHESTRATORS.get(s.id)
+    if orch is not None:
+        return orch
+    extras: dict = {}
+    if persist_enabled():
+        from .persist import load_case_row
+
+        row = load_case_row(s.id)
+        if row is not None:
+            extras = json.loads(row.extras_json or "{}")
+    orch = rebuild_orchestrator(s, extras)
+    ORCHESTRATORS[s.id] = orch
+    register_orchestrator(orch)
+    return orch
+
+
+def _apply_speak(s: Session, pending: dict) -> None:
+    assert s.seat is not None
+    s.seat.pending = pending
+    s.status = "running"
+
+
+def _meta_needs_extract(meta: SpeakMeta | None) -> bool:
+    if meta is None:
+        return True
+    return meta.action is None and meta.target is None and meta.claims is None
+
+
+async def _prepare_pending(s: Session, body: SpeakBody) -> dict:
+    if s.seat is None:
+        raise HTTPException(409, "旁观会话不能入局发言")
+    if s.status != "awaiting_player" or not s.seat.awaiting:
+        raise HTTPException(409, "现在不是你的发言回合")
+    text = (body.text or "").strip()
+    if body.delegate == bool(text):
+        raise HTTPException(400, "delegate 与 text 二选一")
+    turn_key = s.seat.awaiting["turn_key"]
+    if body.delegate:
+        return {"turn_key": turn_key, "delegate": True}
+    admissions = list(body.meta.admissions) if body.meta else []
+    meta: dict = {"admissions": admissions}
+    if _meta_needs_extract(body.meta):
+        from .seat.advisor import extract_meta, resolve_advisor
+
+        resolved = resolve_advisor(s.case, get_settings(), PROVIDERS)
+        if resolved is not None:
+            try:
+                extracted = await extract_meta(
+                    resolved[0],
+                    text,
+                    [a.id for a in s.specs],
+                    [asset.id for asset in s.case.assets],
+                )
+                meta.update(extracted)
+            except Exception:
+                meta.update({"action": "propose", "target": None, "claims": {}})
+        else:
+            meta.update({"action": "propose", "target": None, "claims": {}})
+    else:
+        assert body.meta is not None
+        if body.meta.action:
+            meta["action"] = body.meta.action
+        if body.meta.target is not None:
+            meta["target"] = body.meta.target
+        if body.meta.claims is not None:
+            meta["claims"] = body.meta.claims
+        meta.setdefault("action", "propose")
+    meta["admissions"] = admissions
+    return {"turn_key": turn_key, "text": text[:500], "meta": meta, "delegate": False}
 
 
 def _get(session_id: str) -> Session:
@@ -302,9 +444,62 @@ def _sse(evt: dict) -> str:
     return f"id: {evt['seq']}\nevent: {evt['type']}\ndata: {json.dumps(evt, ensure_ascii=False)}\n\n"
 
 
+@app.put("/api/sessions/{session_id}/seat")
+async def set_seat(session_id: str, body: SeatBody) -> dict:
+    s = _get(session_id)
+    if s.seat is None:
+        raise HTTPException(404, "旁观会话没有席位")
+    if s.status in {"done", "cancelled", "error"}:
+        raise HTTPException(409, "听证会已经结束")
+    s.seat.human = body.human
+    s.emit("seat", {"human": body.human})
+    if s.status == "awaiting_player" and not body.human:
+        pending = await _prepare_pending(s, SpeakBody(delegate=True))
+        _apply_speak(s, pending)
+        orch = _ensure_orch(s)
+        s.persist_snapshot(orch._extras())
+        if s.task is None or s.task.done():
+            s.task = _spawn(orch, resume=True)
+        return {"ok": True, "human": False}
+    orch = _ensure_orch(s)
+    s.persist_snapshot(orch._extras())
+    return {"ok": True, "human": body.human}
+
+
+@app.post("/api/sessions/{session_id}/speak")
+async def speak(session_id: str, body: SpeakBody) -> dict:
+    s = _get(session_id)
+    pending = await _prepare_pending(s, body)
+    _apply_speak(s, pending)
+    orch = _ensure_orch(s)
+    s.persist_snapshot(orch._extras())
+    if s.task is None or s.task.done():
+        s.task = _spawn(orch, resume=True)
+    return {"ok": True}
+
+
+@app.post("/api/sessions/{session_id}/cards")
+async def regenerate_cards(session_id: str) -> dict:
+    s = _get(session_id)
+    if s.seat is None or s.status != "awaiting_player" or not s.seat.awaiting:
+        raise HTTPException(409, "现在不是你的发言回合")
+    key = s.seat.awaiting["turn_key"]
+    s.seat.cards.pop(key, None)
+    orch = _ensure_orch(s)
+    phase = str(s.seat.awaiting.get("phase") or "statements")
+    round_no = int(s.seat.awaiting.get("round") or 0)
+    focus = s.seat.awaiting.get("focus") or ""
+    member = next(m for m in s.case.members if m.id == orch.player_id)
+    cards = await orch._cards_for(key, member, phase, round_no, focus)
+    s.persist_snapshot(orch._extras())
+    return {"ok": True, "cards": cards}
+
+
 @app.post("/api/sessions/{session_id}/interject")
 async def interject(session_id: str, body: InterjectBody) -> dict:
     s = _get(session_id)
+    if s.seat is not None:
+        raise HTTPException(409, "入局推演模式下逝者不能显灵——这是当事人视角的沙盘")
     if s.status != "running":
         raise HTTPException(409, "听证会已经结束，幽灵也该安息了")
     s.interjections.append(body.text.strip())
@@ -318,6 +513,8 @@ async def interject(session_id: str, body: InterjectBody) -> dict:
 @app.post("/api/sessions/{session_id}/pause")
 async def pause_session(session_id: str) -> dict:
     s = _get(session_id)
+    if s.status == "awaiting_player":
+        raise HTTPException(409, "正在等你发言，无需休庭")
     if s.status not in {"running", "paused"}:
         raise HTTPException(409, "听证会已经结束")
     s.paused = True

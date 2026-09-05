@@ -58,11 +58,14 @@ def _executor_system(orch: Orchestrator) -> str:
 
 def _debater_system(orch: Orchestrator, member_id: str) -> str:
     m = orch.members[member_id]
+    brief = orch.seat_brief_text(member_id)
+    brief_block = f"{brief}\n" if brief else ""
     return (
         f"你是「{m.name}」，{orch.case.decedent_name}的{m.label}。这是一场关于{orch.case.decedent_name}"
         f"遗产分配的家庭听证会，由遗嘱执行官主持。\n"
         f"【你的人设】{persona_prompt(m, orch.case.decedent_name)}\n"
         f"【你的心愿】{orch.specs[m.id].wish}\n"
+        f"{brief_block}"
         f"{DEBATER_RULES}"
     )
 

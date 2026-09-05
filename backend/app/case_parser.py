@@ -8,7 +8,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 
-from .agents.llm import LLMClient, LLMError, extract_json
+from .agents.llm import LLMClient, LLMError, ModelUnavailable, extract_json, repair_messages, resolve_client
 from .config import Settings
 from .legal import compute_legal_shares
 from .models import (
@@ -20,7 +20,7 @@ from .models import (
     Personality,
     Relation,
 )
-from .providers import Provider, ProviderStore
+from .providers import ProviderStore
 
 MAX_CASE_CHARS = 100_000
 EvidenceText = Annotated[str, Field(max_length=300)]
@@ -145,18 +145,7 @@ def _repair_messages(
     raw: str,
     error: str,
 ) -> list[dict[str, str]]:
-    return [
-        *messages,
-        {"role": "assistant", "content": raw[:20_000]},
-        {
-            "role": "user",
-            "content": (
-                "上一个 JSON 未通过校验。请只重新输出修正后的完整 JSON 对象；"
-                "不要补写原文没有的事实。\n校验错误：\n"
-                f"{error[:4_000]}"
-            ),
-        },
-    ]
+    return repair_messages(messages, raw, error)
 
 
 def _resolve_client(
@@ -164,37 +153,17 @@ def _resolve_client(
     settings: Settings,
     providers: ProviderStore,
 ) -> tuple[LLMClient, str]:
-    provider: Provider | None = None
-    model = ""
-    if ref is not None:
-        if ref.is_mock:
-            raise CaseParseError("案情解析必须选择一个可用模型，不能使用剧本模式")
-        provider = providers.get(ref.provider_id, settings)
-        if provider is None:
-            raise CaseParseError(f"案情解析供应商「{ref.provider_id}」不存在")
-        model = ref.model or (provider.models[0] if provider.models else "")
-    else:
-        env = ProviderStore.env_provider(settings)
-        if env is not None and env.ready:
-            provider = env
-            model = settings.model or (env.models[0] if env.models else "")
-        else:
-            provider = next(
-                (p for p, _source in providers.list(settings) if p.ready and p.models),
-                None,
-            )
-            model = provider.models[0] if provider and provider.models else ""
-    if provider is None or not provider.ready or not model:
-        raise CaseParseError("没有可用的案情解析模型，请先在「模型供应商」中完成配置")
-    client = LLMClient(
-        provider.base_url,
-        provider.api_key,
-        model,
-        temperature=0.1,
-        timeout=min(max(settings.timeout, 60), 180),
-        label=f"{provider.name} · {model}",
-    )
-    return client, client.label
+    try:
+        return resolve_client(
+            ref,
+            settings,
+            providers,
+            temperature=0.1,
+            timeout=min(max(settings.timeout, 60), 180),
+            purpose="案情解析",
+        )
+    except ModelUnavailable as error:
+        raise CaseParseError(str(error)) from error
 
 
 async def _complete_json(client: LLMClient, messages: list[dict[str, str]]) -> str:
