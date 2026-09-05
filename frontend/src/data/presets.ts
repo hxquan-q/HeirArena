@@ -62,7 +62,7 @@ export function newMember(partial: Partial<Member> = {}): Member {
   return {
     id: uid('m'), name: '', relation: 'son', personality: 'chill', deceased: false, parent_id: null,
     main_support: false, hardship: false, neglect: false, cohabit: false, dependency: false, disqualified: false,
-    wish: '', ...partial,
+    wish: '', model: null, ...partial,
   }
 }
 
@@ -100,6 +100,8 @@ export const PRESETS: Preset[] = [
       ],
       rounds: 2,
       speed: 1,
+      default_model: null,
+      executor_model: null,
     }),
   },
   {
@@ -128,6 +130,8 @@ export const PRESETS: Preset[] = [
       ],
       rounds: 2,
       speed: 1,
+      default_model: null,
+      executor_model: null,
     }),
   },
   {
@@ -153,6 +157,8 @@ export const PRESETS: Preset[] = [
       ],
       rounds: 2,
       speed: 1,
+      default_model: null,
+      executor_model: null,
     }),
   },
   {
@@ -179,6 +185,8 @@ export const PRESETS: Preset[] = [
       ],
       rounds: 2,
       speed: 1,
+      default_model: null,
+      executor_model: null,
     }),
   },
 ]

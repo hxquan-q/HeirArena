@@ -84,7 +84,9 @@ export const useCourt = create<CourtState>((set, get) => ({
             turn_id: String(d.turn_id), agent_id: String(d.agent_id), phase: d.phase as Phase,
             round: Number(d.round), text: '', done: false, ts: Date.now(),
           }
-          set((s) => ({ turns: [...s.turns, turn], activeTurnId: turn.turn_id }))
+          set((s) => s.turns.some((t) => t.turn_id === turn.turn_id)
+            ? { activeTurnId: turn.turn_id }
+            : { turns: [...s.turns, turn], activeTurnId: turn.turn_id })
           break
         }
         case 'speech_delta': {

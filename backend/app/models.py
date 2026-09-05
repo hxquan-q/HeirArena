@@ -110,6 +110,10 @@ class CaseInput(BaseModel):
     members: list[Member]
     rounds: int = Field(default=2, ge=1, le=4)
     speed: float = Field(default=1.0, ge=0.25, le=4.0, description="Mock 模式下的语速倍率")
+    discretion: float = Field(
+        default=5.0, ge=0.0, le=15.0,
+        description="执行官相对法定份额的最大酌情偏移（百分点）。0 = 严格法定；5 = 参考模式；15 = 戏剧模式",
+    )
     default_model: Optional[ModelRef] = Field(default=None, description="所有角色的默认模型；None 表示使用 .env 默认或剧本模式")
     executor_model: Optional[ModelRef] = Field(default=None, description="遗嘱执行官使用的模型；None 表示跟随默认")
 

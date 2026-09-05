@@ -23,7 +23,17 @@ dist/
 .canva_tmp/
 .playwright-mcp/
 
+# HeirArena runtime data
+backend/tmp/pytest/
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/providers.json
+
 # OS / editor
 .DS_Store
 Thumbs.db
 *.log
+
+# codex-bridge
+codex-bridge/.codex-home/
+codex-bridge/node_modules/

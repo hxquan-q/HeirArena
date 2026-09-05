@@ -189,6 +189,20 @@ EXEC_VERDICT = [
 
 FOCUS_POOL = ["{asset}的归属", "谁尽了主要扶养义务", "宠物与纪念物的去向", "夫妻共同财产如何析产", "代位继承与份额", "不可分割资产如何折价补偿"]
 
+# 与 admissions 符号配套的台词：说了这句，JSON 里才会带上对应符号（DualPath：文本与符号一致）
+ADMIT_NEGLECT_LINES = [
+    "……行，我承认，这几年我确实没怎么管过{decedent}，钱打了人没回。这点我认。",
+    "好，我不装了：{decedent}住院那阵子我在外地，没回来。我有能力照顾但没做到，这是事实。",
+]
+WAIVE_LINES = [
+    "我把话说明白：我那份少拿一点也行，别为这点钱把家拆了。",
+    "算了，我主动让出一部分，只要{asset2}留给我。",
+]
+ACK_SUPPORT_LINES = [
+    "有一点我得承认：{target}这些年确实照顾{decedent}最多，这我不否认。",
+    "公道话我还是要说一句——{decedent}最后几年是{target}在身边，这个事实谁也改不了。",
+]
+
 
 @dataclass
 class MockContext:
@@ -288,6 +302,22 @@ def mock_speech(ctx: MockContext, prefs: dict[str, float] | None = None) -> tupl
     )
     if ctx.interjection:
         text = f"（天花板忽然传来{ctx.decedent}的声音：“{ctx.interjection[:40]}”）……行，那我接着说。" + text
+
+    # 符号化事实：只有嘴上说了对应的话，JSON 里才带符号
+    admissions: list[str] = []
+    is_party = ctx.me.relation not in {"pet", "ai_twin", "ex_spouse"}
+    if is_party and ctx.phase in {"debate", "negotiation"}:
+        if ctx.me.neglect and ctx.phase == "negotiation" and rng.random() < 0.55:
+            text += rng.choice(ADMIT_NEGLECT_LINES).format(decedent=ctx.decedent)
+            admissions.append("admit_neglect")
+        elif action == "concede" and rng.random() < 0.5:
+            text += rng.choice(WAIVE_LINES).format(asset2=asset2.name)
+            admissions.append("waive_share")
+        supporters = [o for o in ctx.others if o.main_support and o.relation not in {"pet", "ai_twin"} and not o.deceased]
+        if supporters and p in {"filial", "chill", "loyal", "calculating", "lawyer"} and rng.random() < 0.6:
+            sup = rng.choice(supporters)
+            text += rng.choice(ACK_SUPPORT_LINES).format(target=sup.name, decedent=ctx.decedent)
+            admissions.append(f"acknowledge_support:{sup.id}")
     if rng.random() < 0.8:
         text += rng.choice(FLAVOR.get(p, [""]))
 
@@ -306,5 +336,6 @@ def mock_speech(ctx: MockContext, prefs: dict[str, float] | None = None) -> tupl
         "target": target.id if (target and action in {"attack", "ally"}) else None,
         "emoji": rng.choice(EMOJI_BY_ACTION.get(action, ["🙂"])),
         "claims": claims,
+        "admissions": admissions,
     }
     return text, meta

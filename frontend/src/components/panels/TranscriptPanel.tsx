@@ -1,15 +1,11 @@
+import { PxlKitIcon } from '@pxlkit/core'
+import { motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 import type { AgentSpec, Turn } from '../../types'
+import { ACTION_STYLE } from '../scene/actionIcons'
 
 const PHASE_LABEL: Record<string, string> = {
   opening: '开庭', statements: '陈述', debate: '辩论', negotiation: '协商', verdict: '裁决',
-}
-const ACTION: Record<string, { label: string; cls: string }> = {
-  attack: { label: '⚔ 攻击', cls: 'text-red-300 border-red-400/40' },
-  ally: { label: '🤝 结盟', cls: 'text-emerald-300 border-emerald-400/40' },
-  propose: { label: '📝 提案', cls: 'text-sky-300 border-sky-400/40' },
-  concede: { label: '🫠 让步', cls: 'text-amber-300 border-amber-400/40' },
-  plead: { label: '🥺 恳求', cls: 'text-pink-300 border-pink-400/40' },
 }
 
 interface Props {
@@ -42,17 +38,18 @@ export default function TranscriptPanel({ turns, agents, ghosts, decedent }: Pro
       {items.map((it) => {
         if (it.kind === 'ghost') {
           return (
-            <div key={`g${it.ts}`} className="mx-2 rounded-xl border border-violet-400/30 bg-violet-950/40 px-3 py-2 text-xs text-violet-100">
+            <motion.div key={`g${it.ts}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
+              className="mx-2 rounded-xl border border-violet-400/30 bg-violet-950/40 px-3 py-2 text-xs text-violet-100">
               👻 <b>{decedent} 的幽灵</b>：{it.text}
-            </div>
+            </motion.div>
           )
         }
         const t = it.t
         const a = byId[t.agent_id]
         const target = t.meta?.target ? byId[t.meta.target] : null
-        const action = t.meta ? ACTION[t.meta.action] : null
+        const action = t.meta ? ACTION_STYLE[t.meta.action] : null
         return (
-          <div key={t.turn_id} className="flex gap-2.5">
+          <motion.div key={t.turn_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }} className="flex gap-2.5">
             <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
               style={{ background: `${a?.color ?? '#5b647a'}22`, color: a?.color ?? '#8b93a7', border: `1px solid ${a?.color ?? '#5b647a'}66` }}>
               {a?.kind === 'judge' ? '⚖' : a?.kind === 'pet' ? '🐾' : a?.kind === 'ai' ? '🤖' : (a?.name ?? '?').slice(0, 1)}
@@ -64,6 +61,7 @@ export default function TranscriptPanel({ turns, agents, ghosts, decedent }: Pro
                 <span className="chip text-[10px] text-ink-300">{PHASE_LABEL[t.phase] ?? t.phase}{t.round ? ` R${t.round}` : ''}</span>
                 {action && (
                   <span className={`chip text-[10px] ${action.cls}`}>
+                    <PxlKitIcon icon={action.icon} size={11} aria-label={action.label} />
                     {action.label}{target ? ` → ${target.name}` : ''} {t.meta?.emoji}
                   </span>
                 )}
@@ -73,7 +71,7 @@ export default function TranscriptPanel({ turns, agents, ghosts, decedent }: Pro
                 {!t.done && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-caret bg-gold-300" />}
               </div>
             </div>
-          </div>
+          </motion.div>
         )
       })}
     </div>
