@@ -24,10 +24,22 @@ dist/
 .playwright-mcp/
 
 # HeirArena runtime data
-backend/tmp/pytest/
-backend/data/*.db
-backend/data/*.db-journal
-backend/data/providers.json
+backend/tmp/
+backend/data/
+*.bak
+
+# Design / scratch (not shipped)
+docs/resources/
+frontend/zpix-tree.json
+
+# Local artifacts / screenshots / scratch
+tmp/
+logs/
+.agents/
+.grok/
+codex-bridge/
+anime_characters_assets/
+/*.png
 
 # OS / editor
 .DS_Store
