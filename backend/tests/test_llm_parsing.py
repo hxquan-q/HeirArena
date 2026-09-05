@@ -18,6 +18,10 @@ def test_extract_json_handles_code_fences_and_prose():
     assert extract_json('裁决如下：{"action": "attack", "target": null} 以上。') == {"action": "attack", "target": None}
     assert extract_json("没有 JSON") is None
     assert extract_json('{"broken": ') is None
+    assert extract_json('{"story":"这项争议 } 尚未解决","ok":true}') == {
+        "story": "这项争议 } 尚未解决",
+        "ok": True,
+    }
 
 
 async def _fake_stream(chunks):
@@ -53,7 +57,7 @@ def test_meta_normalization_rejects_bad_values():
     case = sample_case()
     orch = Orchestrator(build_session(case, compute_legal_shares(case), MOCK_SETTINGS))
     meta = orch._normalize_meta("son", {"action": "nuke", "target": "son", "claims": "x", "emoji": None})
-    assert meta == {"action": "propose", "target": None, "emoji": "🙂", "claims": {}}
+    assert meta == {"action": "propose", "target": None, "emoji": "🙂", "claims": {}, "admissions": []}
 
 
 def test_settings_mode_detection():

@@ -1,10 +1,19 @@
-import { ArrowRight, Check, ChevronDown, FileText, Gavel, Landmark, Plus, Scale, Sparkles, Trash2, Users, Wallet } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { PxlKitIcon } from '@pxlkit/core'
+import { PixelEmptyState, PixelSegmented, PixelStatCard, PixelSwitch, PixelTooltip } from '@pxlkit/ui-kit'
+import { ArrowRight, Check, ChevronDown, Cpu, FileText, Gavel, Landmark, Plug, Plus, Scale, Sparkles, Trash2, Users, Wallet } from 'lucide-react'
+import { lazy, Suspense,  useEffect, useMemo, useState, type ReactNode  } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api, type ServerConfig } from '../api/client'
+import { api, type CaseParseResult, type ServerConfig } from '../api/client'
+import CaseImport from '../components/CaseImport'
+import ModelSelect from '../components/ModelSelect'
+import ProviderManager from '../components/ProviderManager'
 import CharacterPortrait from '../components/scene/CharacterPortrait'
+const VoxelStage = lazy(() => import('../components/scene3d/VoxelStage'))
+import { Gavel as PixelGavel, Balance as PixelBalance } from '../components/icons/pixel'
 import { ASSET_TYPES, PERSONALITIES, PRESETS, RELATIONS, newAsset, newMember } from '../data/presets'
-import type { AgentSpec, Asset, CaseInput, LegalResult, Member } from '../types'
+import { describeRef, useProviders } from '../hooks/useProviders'
+import type { AgentSpec, Asset, CaseInput, LegalResult, Member, Provider } from '../types'
 
 const FLAGS: { key: keyof Member; label: string; hint: string }[] = [
   { key: 'main_support', label: '尽了主要扶养义务', hint: '第1130条 可以多分；儿媳/女婿据此成为第一顺序' },
@@ -26,10 +35,19 @@ export default function SetupPage() {
   const [submitErr, setSubmitErr] = useState<string | null>(null)
   const [openMember, setOpenMember] = useState<string | null>(null)
   const [activePreset, setActivePreset] = useState(PRESETS[0].id)
+  const [showProviders, setShowProviders] = useState(false)
+  const [show3D, setShow3D] = useState(true)
+  const [voxelIcon, setVoxelIcon] = useState(false)
+  const { providers, presets, refresh: refreshProviders } = useProviders()
 
   useEffect(() => {
     api.config().then(setConfig).catch(() => setConfig(null))
   }, [])
+
+  const onProvidersChanged = async () => {
+    await refreshProviders()
+    api.config().then(setConfig).catch(() => {})
+  }
 
   const valid = useMemo(
     () => c.assets.some((a) => a.name.trim()) && c.members.some((m) => m.name.trim()) && c.decedent_name.trim().length > 0,
@@ -51,6 +69,8 @@ export default function SetupPage() {
   const updAsset = (id: string, patch: Partial<Asset>) => upd({ assets: c.assets.map((a) => (a.id === id ? { ...a, ...patch } : a)) })
   const updMember = (id: string, patch: Partial<Member>) => upd({ members: c.members.map((m) => (m.id === id ? { ...m, ...patch } : m)) })
 
+  const overriddenCount = c.members.filter((m) => !!m.model).length
+
   const start = async () => {
     setSubmitting(true)
     setSubmitErr(null)
@@ -61,6 +81,21 @@ export default function SetupPage() {
       setSubmitErr((e as Error).message)
       setSubmitting(false)
     }
+  }
+
+  const applyParsedCase = (result: CaseParseResult) => {
+    setC((current) => ({
+      ...result.case,
+      rounds: current.rounds,
+      speed: current.speed,
+      discretion: current.discretion ?? 5,
+      default_model: current.default_model,
+      executor_model: current.executor_model,
+    }))
+    setPreview(result.legal)
+    setPreviewErr(null)
+    setOpenMember(null)
+    setActivePreset('')
   }
 
   const children = c.members.filter((m) => ['son', 'daughter', 'stepchild'].includes(m.relation))
@@ -100,14 +135,30 @@ export default function SetupPage() {
             ))}
           </div>
 
-          <div className="ml-auto shrink-0">
-            <ModeBadge config={config} />
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ModeBadge config={config} providers={providers} />
+            <button className="btn-ghost h-8 px-2.5" onClick={() => setShowProviders(true)}>
+              <Plug size={13} /> <span className="hidden sm:inline">模型供应商</span>
+            </button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-[1580px] px-4 pb-12 pt-5 sm:px-6 lg:px-8 lg:pt-7">
         <section className="relative overflow-hidden rounded-[1.6rem] border border-white/8 bg-[linear-gradient(135deg,rgba(31,28,25,.96),rgba(15,16,23,.97)_48%,rgba(17,14,23,.98))] p-6 shadow-[0_30px_100px_-55px_rgba(214,162,78,.45)] sm:p-8 lg:px-10 lg:py-9">
+          {/* 3D 体素视图开关：Pxlkit 像素图标 × React Three Fiber */}
+          <div className="absolute top-4 right-4 z-10 sm:top-5 sm:right-6">
+            <button onClick={() => setShow3D((v) => !v)} title={show3D ? '收起 3D 图腾' : '展开 3D 图腾'}
+              className="btn-ghost h-8 gap-1.5 rounded-xl px-2.5 text-[11px] font-semibold tracking-wide">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span key={voxelIcon ? 'balance' : 'gavel'} className="flex items-center gap-1.5"
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }}>
+                  <PxlKitIcon icon={voxelIcon ? PixelBalance : PixelGavel} size={13} appearance="solid" color="#e9be6f" />
+                  {show3D ? '3D 图腾' : '隐藏图腾'}
+                </motion.span>
+              </AnimatePresence>
+            </button>
+          </div>
           <div className="pointer-events-none absolute -top-28 right-[12%] h-72 w-72 rounded-full bg-gold-500/10 blur-3xl" />
           <div className="pointer-events-none absolute -right-24 -bottom-32 h-80 w-80 rounded-full bg-violet-500/8 blur-3xl" />
           <div className="pointer-events-none absolute inset-y-0 right-[34%] hidden w-px bg-gradient-to-b from-transparent via-white/8 to-transparent lg:block" />
@@ -130,6 +181,33 @@ export default function SetupPage() {
               </div>
             </div>
 
+            <div className="flex min-w-0 flex-col">
+            <AnimatePresence initial={false}>
+              {show3D && (
+                <motion.div className="relative mb-4 overflow-hidden rounded-2xl border border-gold-500/12 bg-[radial-gradient(circle_at_50%_32%,rgba(214,162,78,.10),rgba(8,9,13,.9)_66%)] shadow-[inset_0_1px_0_rgba(255,255,255,.04)]"
+                  initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 234 }} exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}>
+                  <div className="flex items-center justify-between px-4 pt-3">
+                    <div>
+                      <div className="text-[10px] font-semibold tracking-[0.18em] text-gold-400">3D DOSSIER SIGIL</div>
+                      <div className="mt-0.5 text-[11px] text-ink-400">React Three Fiber 体素法庭图腾</div>
+                    </div>
+                    <div className="chip border-gold-500/25 bg-gold-500/6 text-[9px] tracking-widest text-gold-300">VOXEL</div>
+                  </div>
+                  <button type="button" onClick={() => setVoxelIcon((v) => !v)} className="flex cursor-pointer justify-center" title={voxelIcon ? '切换为体素法槌' : '切换为体素天平'}>
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.div key={voxelIcon ? 'balance' : 'gavel'}
+                        initial={{ opacity: 0, rotateY: 35, scale: 0.92 }} animate={{ opacity: 1, rotateY: 0, scale: 1 }}
+                        exit={{ opacity: 0, rotateY: -35, scale: 0.92 }} transition={{ duration: 0.3, ease: 'easeOut' }}>
+                        <Suspense fallback={<div className="flex h-[168px] w-[168px] items-center justify-center"><span className="animate-pulse font-mono text-[10px] tracking-widest text-gold-400">LOADING 3D…</span></div>}>
+                          <VoxelStage icon={voxelIcon ? PixelBalance : PixelGavel} size={168} spin={0.45} bob={0.05} glow="rgba(233,190,111,.28)" />
+                        </Suspense>
+                      </motion.div>
+                    </AnimatePresence>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="panel-inset rounded-2xl p-4 sm:p-5">
               <div className="mb-4 flex items-center justify-between">
                 <div>
@@ -149,6 +227,7 @@ export default function SetupPage() {
                 {valid ? '卷宗信息完整，可以开庭' : '请至少填写一项资产与一位出席者'}
               </div>
             </div>
+            </div>
           </div>
         </section>
 
@@ -164,8 +243,13 @@ export default function SetupPage() {
             {PRESETS.map((p, i) => {
               const active = p.id === activePreset
               return (
-                <button key={p.id} onClick={() => { setC(p.build()); setOpenMember(null); setActivePreset(p.id) }}
-                  className={`group relative min-h-[142px] overflow-hidden rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-1 ${active
+                <motion.button key={p.id} onClick={() => { setC(p.build()); setOpenMember(null); setActivePreset(p.id) }}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.4, delay: i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+                  whileHover={{ y: -4 }}
+                  className={`group relative min-h-[142px] overflow-hidden rounded-2xl border p-4 text-left transition duration-200 ${active
                     ? 'border-gold-500/60 bg-[linear-gradient(145deg,rgba(214,162,78,.14),rgba(18,19,26,.96)_62%)] shadow-[0_18px_45px_-24px_rgba(214,162,78,.7)]'
                     : 'border-white/7 bg-ink-850/80 hover:border-white/15 hover:bg-ink-800/80'}`}>
                   <div className="absolute top-3 right-3 font-mono text-[10px] tracking-widest text-ink-400">CASE {String(i + 1).padStart(2, '0')}</div>
@@ -176,11 +260,18 @@ export default function SetupPage() {
                   </div>
                   <div className="mt-1.5 text-xs leading-relaxed text-ink-300">{p.tagline}</div>
                   <div className={`absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent ${active ? 'via-gold-400/70' : 'via-white/10'} to-transparent`} />
-                </button>
+                </motion.button>
               )
             })}
           </div>
         </section>
+
+        <CaseImport
+          providers={providers}
+          suggestedModel={c.executor_model ?? c.default_model ?? config?.default_model ?? null}
+          onParsed={applyParsedCase}
+          onManageProviders={() => setShowProviders(true)}
+        />
 
         <section className="mt-6 grid items-start gap-5 2xl:grid-cols-[320px_minmax(0,1fr)_minmax(0,1.04fr)]">
           {/* basics */}
@@ -201,23 +292,44 @@ export default function SetupPage() {
                 <span>辩论轮数</span>
                 <span className="font-mono text-gold-300">{c.rounds} ROUNDS</span>
               </div>
-              <div className="grid grid-cols-4 gap-1 rounded-xl border border-white/5 bg-black/25 p-1">
-                {[1, 2, 3, 4].map((n) => (
-                  <button key={n} onClick={() => upd({ rounds: n })}
-                    className={`rounded-lg py-2 text-sm transition ${c.rounds === n ? 'bg-gold-500 font-bold text-ink-950 shadow-[0_4px_12px_rgba(214,162,78,.28)]' : 'text-ink-300 hover:bg-white/5 hover:text-ink-100'}`}>{n}</button>
-                ))}
-              </div>
+              <PixelSegmented
+                value={String(c.rounds)}
+                options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: String(n) }))}
+                onChange={(v) => upd({ rounds: Number(v) })}
+                tone="gold"
+                aria-label="辩论轮数"
+              />
             </div>
             <div className="space-y-2 text-xs font-medium text-ink-300">
               <div className="flex items-center justify-between">
                 <span>播放语速</span>
                 <span className="font-mono text-gold-300">{c.speed}× SPEED</span>
               </div>
-              <div className="grid grid-cols-4 gap-1 rounded-xl border border-white/5 bg-black/25 p-1">
-                {[0.5, 1, 2, 4].map((n) => (
-                  <button key={n} onClick={() => upd({ speed: n })}
-                    className={`rounded-lg py-2 text-sm transition ${c.speed === n ? 'bg-gold-500 font-bold text-ink-950 shadow-[0_4px_12px_rgba(214,162,78,.28)]' : 'text-ink-300 hover:bg-white/5 hover:text-ink-100'}`}>{n}×</button>
-                ))}
+              <PixelSegmented
+                value={String(c.speed)}
+                options={[0.5, 1, 2, 4].map((n) => ({ value: String(n), label: `${n}×` }))}
+                onChange={(v) => upd({ speed: Number(v) })}
+                tone="gold"
+                aria-label="播放语速"
+              />
+            </div>
+            <div className="panel-inset space-y-2 rounded-xl p-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-semibold text-ink-200"><Cpu size={13} className="text-gold-400" /> 模型分配</span>
+                <button className="text-[11px] text-gold-300 hover:underline" onClick={() => setShowProviders(true)}>管理供应商</button>
+              </div>
+              <label className="block text-ink-300">
+                所有角色默认
+                <ModelSelect className="mt-1" value={c.default_model} onChange={(ref) => upd({ default_model: ref })} providers={providers} />
+              </label>
+              <label className="block text-ink-300">
+                遗嘱执行官（裁决）
+                <ModelSelect className="mt-1" value={c.executor_model} onChange={(ref) => upd({ executor_model: ref })} providers={providers}
+                  inheritLabel={`跟随默认（${describeRef(c.default_model, providers, config?.default_model ? describeRef(config.default_model, providers) : '剧本模式')}）`} />
+              </label>
+              <div className="text-[11px] leading-relaxed text-ink-400">
+                {overriddenCount > 0 ? `${overriddenCount} 位角色单独指定了模型；` : '展开任意角色可单独指定模型；'}
+                未接入模型的角色会用内置剧本发言，模型出错也会自动回退。
               </div>
             </div>
             <div className="rounded-xl border border-gold-500/15 bg-gold-500/[.045] p-3 text-xs leading-relaxed text-ink-300">
@@ -248,18 +360,23 @@ export default function SetupPage() {
                     <button aria-label={`删除${a.name || '资产'}`} className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-400 transition hover:bg-red-400/10 hover:text-red-300" onClick={() => upd({ assets: c.assets.filter((x) => x.id !== a.id) })}><Trash2 size={14} /></button>
                   </div>
                   <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-ink-300">
-                    <Toggle checked={a.joint} onChange={(v) => updAsset(a.id, { joint: v })} label="夫妻共同" hint="第1153条：先析出一半归配偶" />
-                    <Toggle checked={a.sentimental} onChange={(v) => updAsset(a.id, { sentimental: v })} label="纪念意义" />
+                    <PixelTooltip content="第1153条：先析出一半归配偶">
+                      <span>
+                        <PixelSwitch label="夫妻共同" checked={a.joint} onChange={(v) => updAsset(a.id, { joint: v })} tone="gold" />
+                      </span>
+                    </PixelTooltip>
+                    <PixelSwitch label="纪念意义" checked={a.sentimental} onChange={(v) => updAsset(a.id, { sentimental: v })} tone="pink" />
                     <input aria-label="资产备注" className="input-base ml-auto min-w-[130px] flex-1 py-1.5 text-xs sm:max-w-[190px]" value={a.note} onChange={(e) => updAsset(a.id, { note: e.target.value })} placeholder="补充备注（可选）" />
                   </div>
                 </div>
               ))}
               {c.assets.length === 0 && (
-                <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 text-center">
-                  <Wallet size={24} className="mb-2 text-ink-400" />
-                  <div className="text-sm text-ink-300">资产清单还是空的</div>
-                  <div className="mt-1 text-xs text-ink-400">添加至少一项资产才能开庭</div>
-                </div>
+                <PixelEmptyState
+                  title="资产清单还是空的"
+                  description="添加至少一项资产才能开庭"
+                  icon={<PxlKitIcon icon={PixelGavel} size={36} colorful />}
+                  action={<button className="btn-gold px-4 py-2 text-xs" onClick={() => upd({ assets: [...c.assets, newAsset()] })}><Plus size={13} /> 添加第一项资产</button>}
+                />
               )}
             </div>
           </div>
@@ -303,6 +420,11 @@ export default function SetupPage() {
                         </div>
                         <div className="mt-2 flex min-w-0 items-center gap-2 text-[11px]">
                           <span className="truncate text-ink-400">{p?.desc}</span>
+                          {m.model && (
+                            <span className="chip shrink-0 border-sky-400/25 bg-sky-400/5 text-[10px] text-sky-200" title="该角色单独指定的模型">
+                              <Cpu size={10} /> {describeRef(m.model, providers)}
+                            </span>
+                          )}
                           {share && (
                             <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 font-mono ${share.eligible && share.percent > 0 ? 'bg-gold-500/10 text-gold-300' : 'bg-white/[.035] text-ink-400'}`}>
                               {share.eligible && share.percent > 0 ? `法定 ${share.percent.toFixed(1)}%` : share.notes[0]?.slice(0, 16)}
@@ -314,6 +436,11 @@ export default function SetupPage() {
                     {open && (
                       <div className="mt-3 space-y-2.5 border-t border-white/7 pt-3">
                         <input className="input-base py-2 text-xs" value={m.wish} onChange={(e) => updMember(m.id, { wish: e.target.value })} placeholder="TA 最想要什么？例如：房子、老相册或那张沙发" />
+                        <label className="block text-xs text-ink-300">
+                          <span className="flex items-center gap-1.5"><Cpu size={12} className="text-gold-400" /> 这个角色用哪个模型发言</span>
+                          <ModelSelect className="mt-1.5" value={m.model} onChange={(ref) => updMember(m.id, { model: ref })} providers={providers}
+                            inheritLabel={`跟随默认（${describeRef(c.default_model, providers, config?.default_model ? describeRef(config.default_model, providers) : '剧本模式')}）`} />
+                        </label>
                         {m.relation === 'grandchild' && (
                           <label className="block text-xs text-ink-300">
                             TA 的父 / 母是
@@ -378,6 +505,8 @@ export default function SetupPage() {
           </div>
         </div>
       </div>
+
+      <ProviderManager open={showProviders} onClose={() => setShowProviders(false)} providers={providers} presets={presets} onChanged={onProvidersChanged} />
     </div>
   )
 }
@@ -401,10 +530,14 @@ function PanelHeading({ icon, step, title, subtitle }: { icon: ReactNode; step: 
 
 function HeroStat({ label, value, gold }: { label: string; value: string; gold?: boolean }) {
   return (
-    <div className="rounded-xl border border-white/6 bg-white/[.025] px-3 py-2.5">
-      <div className="text-[10px] text-ink-400">{label}</div>
-      <div className={`mt-0.5 font-mono text-sm font-bold ${gold ? 'text-gold-300' : 'text-ink-100'}`}>{value}</div>
-    </div>
+    <PixelStatCard
+      label={label}
+      value={value}
+      size="sm"
+      tone={gold ? 'gold' : 'neutral'}
+      valueTone={gold}
+      align="start"
+    />
   )
 }
 
@@ -424,32 +557,24 @@ function memberAgent(m: Member): AgentSpec {
     legal_percent: 0,
     eligible: true,
     wish: m.wish,
+    llm: !!m.model && m.model.provider_id !== 'mock',
+    model_label: '',
   }
 }
 
-function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
-  return (
-    <button type="button" role="switch" aria-checked={checked} title={hint} onClick={() => onChange(!checked)}
-      className="flex items-center gap-1.5 rounded-md text-ink-300 outline-none transition hover:text-ink-100">
-      <span className={`relative inline-block h-4 w-7 rounded-full transition ${checked ? 'bg-gold-500 shadow-[0_0_10px_rgba(214,162,78,.25)]' : 'bg-ink-600'}`}>
-        <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${checked ? 'left-3.5' : 'left-0.5'}`} />
-      </span>
-      <span>{label}</span>
-    </button>
-  )
-}
-
-function ModeBadge({ config }: { config: ServerConfig | null }) {
+function ModeBadge({ config, providers }: { config: ServerConfig | null; providers: Provider[] }) {
   if (!config) return <span className="chip text-ink-400"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink-300" /> 连接中</span>
-  return config.mode === 'llm' ? (
-    <span className="chip border-emerald-400/30 bg-emerald-400/5 px-2.5 py-1 text-emerald-300">
+  const ready = providers.filter((p) => p.ready)
+  return ready.length > 0 ? (
+    <span className="chip border-emerald-400/30 bg-emerald-400/5 px-2.5 py-1 text-emerald-300" title={ready.map((p) => p.name).join('、')}>
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-      <span className="hidden sm:inline">大模型驱动 · {config.model}</span><span className="sm:hidden">AI 模式</span>
+      <span className="hidden sm:inline">已接入 {ready.length} 个供应商 · {ready.reduce((n, p) => n + p.models.length, 0)} 个模型</span>
+      <span className="sm:hidden">AI 模式</span>
     </span>
   ) : (
-    <span className="chip border-gold-500/30 bg-gold-500/5 px-2.5 py-1 text-gold-300" title="在 backend/.env 里配置 LLM_API_KEY 即可切换为真实大模型">
+    <span className="chip border-gold-500/30 bg-gold-500/5 px-2.5 py-1 text-gold-300" title="点击右侧“模型供应商”接入任意 OpenAI 兼容接口">
       <span className="h-1.5 w-1.5 rounded-full bg-gold-400 shadow-[0_0_8px_rgba(233,190,111,.7)]" />
-      <span className="hidden sm:inline">剧本演示模式</span><span className="sm:hidden">演示</span>
+      <span className="hidden sm:inline">未接入模型 · 剧本演示</span><span className="sm:hidden">演示</span>
     </span>
   )
 }
@@ -461,3 +586,7 @@ function clean(c: CaseInput): CaseInput {
     members: c.members.filter((m) => m.name.trim()),
   }
 }
+
+
+
+

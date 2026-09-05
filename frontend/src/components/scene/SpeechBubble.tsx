@@ -1,14 +1,8 @@
+import { PxlKitIcon } from '@pxlkit/core'
 import { motion } from 'motion/react'
 import { useEffect, useRef, type CSSProperties } from 'react'
 import type { AgentSpec, TurnMeta } from '../../types'
-
-const ACTION_LABEL: Record<string, { label: string; cls: string }> = {
-  attack: { label: '⚔ 攻击', cls: 'text-red-300 border-red-400/40 bg-red-500/10' },
-  ally: { label: '🤝 结盟', cls: 'text-emerald-300 border-emerald-400/40 bg-emerald-500/10' },
-  propose: { label: '📝 提案', cls: 'text-sky-300 border-sky-400/40 bg-sky-500/10' },
-  concede: { label: '🫠 让步', cls: 'text-amber-300 border-amber-400/40 bg-amber-500/10' },
-  plead: { label: '🥺 恳求', cls: 'text-pink-300 border-pink-400/40 bg-pink-500/10' },
-}
+import { ACTION_STYLE } from './actionIcons'
 
 interface Props {
   agent: AgentSpec
@@ -30,7 +24,7 @@ export default function SpeechBubble({ agent, text, live, meta, scale, anchor, s
   const style: CSSProperties = side === 'right'
     ? { left: anchor.x * scale, top: anchor.y * scale, width }
     : { left: anchor.x * scale - width, top: anchor.y * scale, width }
-  const action = meta ? ACTION_LABEL[meta.action] : null
+  const action = meta ? ACTION_STYLE[meta.action] : null
 
   return (
     <motion.div className="absolute z-[900]" style={style} initial={{ opacity: 0, y: 10, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -43,7 +37,10 @@ export default function SpeechBubble({ agent, text, live, meta, scale, anchor, s
           <span className="text-ink-400">{agent.role}</span>
           {live && <span className="ml-auto text-ink-400">发言中…</span>}
           {!live && action && (
-            <span className={`ml-auto rounded-full border px-2 py-[1px] text-[0.9em] ${action.cls}`}>{action.label}</span>
+            <span className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-[1px] text-[0.9em] ${action.cls}`}>
+              <PxlKitIcon icon={action.icon} size={Math.max(10, 12 * scale)} aria-label={action.label} />
+              {action.label}
+            </span>
           )}
         </div>
         <div ref={ref} className="overflow-y-auto px-3 py-2 leading-relaxed text-ink-100"

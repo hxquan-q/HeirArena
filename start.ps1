@@ -25,6 +25,13 @@ if (-not (Test-Path (Join-Path $root "frontend\node_modules"))) {
 }
 Start-Process -FilePath "cmd.exe" -ArgumentList "/k", "npm run dev" -WorkingDirectory (Join-Path $root "frontend")
 
+# ---- codex-bridge（可选：只有执行过 npm install 才会启动）----
+if (Test-Path (Join-Path $root "codex-bridge\node_modules")) {
+    Start-Process -FilePath "cmd.exe" -ArgumentList "/k", "node server.mjs" -WorkingDirectory (Join-Path $root "codex-bridge")
+    Write-Host "[codex-bridge] 已启动 http://127.0.0.1:8787/v1（在「模型供应商」里选 Codex 预设即可使用）" -ForegroundColor Yellow
+}
+
 Start-Sleep -Seconds 3
 Start-Process "http://localhost:5173/"
 Write-Host "HeirArena 已启动：前端 http://localhost:5173  后端 http://127.0.0.1:8000/docs" -ForegroundColor Green
+Write-Host "首页右上角「模型供应商」可接入 DeepSeek / 通义 / Kimi / OpenAI / Ollama 等任意 OpenAI 兼容接口。" -ForegroundColor Green

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@pxlkit/ui-kit/styles.css";
+@source "../node_modules/@pxlkit/ui-kit";
 
 @theme {
   --color-ink-950: #07070a;
@@ -27,6 +29,8 @@
   --font-sans: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Helvetica Neue", Arial, system-ui, sans-serif;
   --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", Georgia, serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  /* Pxlkit UI Kit 默认用 Press Start 2P 像素字，中文不适用，指回项目等宽字体 */
+  --font-pixel: "JetBrains Mono", "Cascadia Code", Consolas, "PingFang SC", "Microsoft YaHei", monospace;
 
   --animate-float: float 3.2s ease-in-out infinite;
   --animate-bob: bob 0.55s ease-in-out infinite;
@@ -97,6 +101,30 @@
 :root {
   color-scheme: dark;
   font-synthesis: none;
+}
+
+/* Pxlkit UI Kit 主题：把 --retro-* 令牌映射到 HeirArena 的黑金色板 */
+.dark {
+  --retro-bg: #07070a;
+  --retro-surface: #0f1016;
+  --retro-card: #171922;
+  --retro-border: rgba(255, 255, 255, 0.1);
+  --retro-border-strong: rgba(255, 255, 255, 0.22);
+  --retro-text: #f7f4ed;
+  --retro-muted: #6d7588;
+  --retro-primary: #d6a24e;
+  --retro-secondary: #e9be6f;
+  --retro-accent: #34d399;
+  --retro-gold: #d6a24e;
+  --retro-green: #34d399;
+  --retro-green-hover: #6ee7b7;
+  --retro-cyan: #22d3ee;
+  --retro-red: #f87171;
+  --retro-purple: #a78bfa;
+  --retro-pink: #f472b6;
+  --retro-shadow-green: rgba(52, 211, 153, 0.25);
+  --retro-shadow-green-lg: rgba(52, 211, 153, 0.15);
+  --retro-shadow-gold: rgba(214, 162, 78, 0.3);
 }
 
 html, body, #root {

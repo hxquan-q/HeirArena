@@ -49,6 +49,8 @@ class AgentSpec(BaseModel):
     legal_percent: float = 0.0
     eligible: bool = False
     wish: str = ""
+    llm: bool = False
+    model_label: str = "剧本模式"
 
 
 def avatar_kind(m: Member) -> str:

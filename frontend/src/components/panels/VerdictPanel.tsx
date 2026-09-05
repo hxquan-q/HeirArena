@@ -1,5 +1,9 @@
+import { ParallaxPxlKitIcon, PxlKitIcon } from '@pxlkit/core'
+import { Skull } from '@pxlkit/gamification'
+import { PixelCrown } from '@pxlkit/parallax'
 import { Download, RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { ACTION_STYLE } from '../scene/actionIcons'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { api } from '../../api/client'
 import { ASSET_EMOJI } from '../../data/presets'
@@ -29,35 +33,49 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
     .filter(([, v]) => v > 0)
     .map(([id, v]) => ({ id, name: byId[id]?.name ?? id, value: v, color: byId[id]?.color ?? '#8b93a7' }))
   const heirs = Object.keys(verdict.targets)
+  const topHeir = heirs.reduce((best, id) => ((verdict.value_shares[id] ?? 0) > (verdict.value_shares[best] ?? 0) ? id : best), heirs[0])
 
   return (
     <div className="space-y-4 text-sm">
+      {verdict.speech && (
+        <blockquote className="relative rounded-xl border border-gold-500/25 bg-gold-500/6 px-4 pt-4 pb-3 text-[13px] leading-relaxed text-ink-100">
+          <span className="absolute -top-2.5 left-3 rounded-full border border-gold-500/35 bg-ink-900 px-2 py-0.5 text-[10px] font-bold tracking-[0.18em] text-gold-300">
+            ⚖ 执行官宣判
+          </span>
+          {verdict.speech}
+        </blockquote>
+      )}
+
       {done && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold-500/30 bg-gold-500/6 px-3 py-2 text-xs">
           <span className="font-semibold text-gold-300">戏剧指数 {done.drama_score}</span>
-          <span className="chip">⚔ 攻击 {done.stats.attacks}</span>
-          <span className="chip">🤝 结盟 {done.stats.alliances}</span>
-          <span className="chip">🫠 让步 {done.stats.concessions}</span>
-          <span className="chip">👻 幽灵插话 {done.stats.ghost}</span>
+          <span className="chip"><PxlKitIcon icon={ACTION_STYLE.attack.icon} size={11} /> 攻击 {done.stats.attacks}</span>
+          <span className="chip"><PxlKitIcon icon={ACTION_STYLE.ally.icon} size={11} /> 结盟 {done.stats.alliances}</span>
+          <span className="chip"><PxlKitIcon icon={ACTION_STYLE.concede.icon} size={11} /> 让步 {done.stats.concessions}</span>
+          <span className="chip"><PxlKitIcon icon={Skull} size={11} /> 幽灵插话 {done.stats.ghost}</span>
         </div>
       )}
 
       <div className="rounded-xl border border-white/6 bg-ink-800/60 p-3">
         <div className="mb-1 text-xs font-semibold text-ink-400">最终价值份额（遗产净额 {verdict.estate_total} 万元）</div>
         <div className="flex items-center gap-2">
-          <div className="h-40 w-40 shrink-0">
+          <div className="relative h-36 w-36 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pie} dataKey="value" nameKey="name" innerRadius={38} outerRadius={70} paddingAngle={2} stroke="#0b0d12" strokeWidth={2}>
+                <Pie data={pie} dataKey="value" nameKey="name" innerRadius={36} outerRadius={64} paddingAngle={2} stroke="#0b0d12" strokeWidth={2}>
                   {pie.map((p) => <Cell key={p.id} fill={p.color} />)}
                 </Pie>
                 <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#151924', border: '1px solid #2a3142', borderRadius: 10, fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-[9px] tracking-widest text-ink-400">净额</span>
+              <span className="font-mono text-sm font-bold text-gold-300">{verdict.estate_total}万</span>
+            </div>
           </div>
           <table className="w-full text-xs">
             <thead className="text-ink-400">
-              <tr><th className="text-left font-normal">继承人</th><th className="text-right font-normal">法定</th><th className="text-right font-normal">裁决</th><th className="text-right font-normal">到手</th></tr>
+              <tr><th className="text-left font-normal">继承人</th><th className="pl-2 text-right font-normal">法定</th><th className="pl-2 text-right font-normal">裁决</th><th className="pl-2 text-right font-normal">到手</th></tr>
             </thead>
             <tbody>
               {heirs.map((id) => {
@@ -66,10 +84,18 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
                 const d = final - legal
                 return (
                   <tr key={id} className="border-t border-white/5">
-                    <td className="py-1"><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: byId[id]?.color }} />{byId[id]?.name ?? id}</td>
-                    <td className="text-right font-mono text-ink-300">{legal.toFixed(1)}%</td>
-                    <td className={`text-right font-mono font-semibold ${d > 0.5 ? 'text-emerald-300' : d < -0.5 ? 'text-red-300' : 'text-ink-100'}`}>{final.toFixed(1)}%</td>
-                    <td className="text-right font-mono text-gold-300">{verdict.member_value[id] ?? 0} 万</td>
+                    <td className="py-1 whitespace-nowrap">
+                      <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: byId[id]?.color }} />
+                      {byId[id]?.name ?? id}
+                      {id === topHeir && heirs.length > 1 && (
+                      <span className="ml-1 inline-flex align-middle" title="份额最高">
+                        <ParallaxPxlKitIcon icon={PixelCrown} size={13} interactive appearance="palette" />
+                      </span>
+                    )}
+                    </td>
+                    <td className="pl-2 text-right font-mono text-ink-300">{legal.toFixed(1)}%</td>
+                    <td className={`pl-2 text-right font-mono font-semibold ${d > 0.5 ? 'text-emerald-300' : d < -0.5 ? 'text-red-300' : 'text-ink-100'}`}>{final.toFixed(1)}%</td>
+                    <td className="pl-2 text-right font-mono text-gold-300">{verdict.member_value[id] ?? 0} 万</td>
                   </tr>
                 )
               })}

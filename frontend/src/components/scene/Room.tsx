@@ -1,12 +1,16 @@
 import { H, W, type Pt } from './layout'
 
 /** 背景层：墙面、徽章、地板、法官席后部、红毯、绿植。 */
-export function RoomBackground() {
+export function RoomBackground({ decedentName }: { decedentName?: string }) {
   const floorLines = Array.from({ length: 14 }, (_, i) => 300 + Math.pow(i, 1.55) * 7)
   const fanLines = Array.from({ length: 13 }, (_, i) => -600 + i * 200)
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
       <defs>
+        <linearGradient id="moonbeam" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="rgba(214,226,255,0.14)" />
+          <stop offset="1" stopColor="rgba(214,226,255,0)" />
+        </linearGradient>
         <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#1b2030" />
           <stop offset="1" stopColor="#12161f" />
@@ -44,6 +48,9 @@ export function RoomBackground() {
 
       {/* wall */}
       <rect x="0" y="0" width={W} height="300" fill="url(#wall)" />
+      {/* moonlight beams from the windows */}
+      <polygon points="90,60 210,60 320,320 20,320" fill="url(#moonbeam)" opacity=".5" />
+      <polygon points="990,60 1110,60 1180,320 880,320" fill="url(#moonbeam)" opacity=".5" />
       {/* windows */}
       {[90, 990].map((x) => (
         <g key={x}>
@@ -105,6 +112,39 @@ export function RoomBackground() {
       {/* dais under the bench */}
       <path d="M380 300 L820 300 L850 345 L350 345 Z" fill="#4a2e1b" />
       <rect x="350" y="345" width="500" height="10" fill="#2f1c0f" />
+
+      {/* memorial easel with the decedent's portrait */}
+      <g transform="translate(268 268)">
+        {/* easel legs */}
+        <path d="M-30 108 L0 -6 L30 108" fill="none" stroke="#4a2e1b" strokeWidth="6" strokeLinecap="round" />
+        <line x1="0" y1="10" x2="0" y2="112" stroke="#4a2e1b" strokeWidth="5" strokeLinecap="round" />
+        <line x1="-26" y1="62" x2="26" y2="62" stroke="#5c3a21" strokeWidth="4" />
+        {/* frame */}
+        <rect x="-34" y="-24" width="68" height="84" rx="6" fill="#2f1c0f" stroke="#8a5a34" strokeWidth="4" />
+        <rect x="-27" y="-17" width="54" height="70" rx="3" fill="#151a24" />
+        {/* portrait silhouette */}
+        <circle cx="0" cy="4" r="12" fill="#8b93a7" opacity=".85" />
+        <path d="M-17 53 Q-17 26 0 26 Q17 26 17 53 Z" fill="#8b93a7" opacity=".85" />
+        {/* black mourning ribbon across the corner */}
+        <path d="M-40 -14 L-12 -30 L-6 -19 L-36 -2 Z" fill="#111318" stroke="#000" strokeWidth="1" />
+        {/* small white chrysanthemum */}
+        <g transform="translate(24 56)">
+          {Array.from({ length: 8 }, (_, i) => (
+            <ellipse key={i} cx="0" cy="-5.5" rx="2.2" ry="5.5" fill="#e9eef8" transform={`rotate(${i * 45})`} />
+          ))}
+          <circle r="2.6" fill="#f1d28f" />
+        </g>
+        {/* name plaque */}
+        {decedentName && (
+          <g>
+            <rect x="-30" y="66" width="60" height="17" rx="4" fill="#3a2414" stroke="#8a5a34" strokeWidth="1.5" />
+            <text x="0" y="78.5" textAnchor="middle" fontSize="11" fill="#f1d28f" letterSpacing="1"
+              style={{ fontFamily: '"Noto Serif SC","Songti SC","SimSun",serif' }}>
+              {decedentName.length > 5 ? decedentName.slice(0, 5) : decedentName}
+            </text>
+          </g>
+        )}
+      </g>
 
       {/* plants */}
       {[70, 1130].map((x) => (

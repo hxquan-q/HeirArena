@@ -9,6 +9,33 @@ export type Relation =
 export type Personality =
   | 'greedy' | 'filial' | 'chill' | 'calculating' | 'drama' | 'lawyer' | 'loyal' | 'mischief'
 
+/** 指向某个供应商下的某个模型；provider_id 为 "mock" 表示该角色明确使用剧本模式。 */
+export interface ModelRef {
+  provider_id: string
+  model: string
+}
+
+export interface Provider {
+  id: string
+  name: string
+  base_url: string
+  models: string[]
+  preset: string
+  api_key_set: boolean
+  api_key_hint: string
+  ready: boolean
+  source: 'file' | 'env'
+}
+
+export interface ProviderPreset {
+  id: string
+  name: string
+  base_url: string
+  models: string[]
+  hint: string
+  needs_key: boolean
+}
+
 export interface Asset {
   id: string
   name: string
@@ -33,6 +60,7 @@ export interface Member {
   dependency: boolean
   disqualified: boolean
   wish: string
+  model: ModelRef | null
 }
 
 export interface CaseInput {
@@ -42,6 +70,10 @@ export interface CaseInput {
   members: Member[]
   rounds: number
   speed: number
+  /** 执行官相对法定份额的最大酌情偏移（百分点）。0 严格 / 5 参考 / 15 戏剧 */
+  discretion?: number
+  default_model: ModelRef | null
+  executor_model: ModelRef | null
 }
 
 export interface HeirShare {
@@ -84,17 +116,23 @@ export interface AgentSpec {
   legal_percent: number
   eligible: boolean
   wish: string
+  llm: boolean
+  model_label: string
 }
 
 export type Phase = 'opening' | 'statements' | 'debate' | 'negotiation' | 'verdict'
 export type AgentStatus = 'idle' | 'thinking' | 'speaking' | 'angry' | 'happy'
 export type Action = 'attack' | 'ally' | 'propose' | 'concede' | 'plead'
 
+/** 角色当庭承认的符号化事实；数值影响由规则引擎决定 */
+export type Admission = 'admit_neglect' | 'waive_share' | `acknowledge_support:${string}`
+
 export interface TurnMeta {
   action: Action
   target: string | null
   emoji: string
   claims: Record<string, number>
+  admissions?: Admission[]
 }
 
 export interface Turn {
@@ -136,12 +174,24 @@ export interface Verdict {
   value_shares: Record<string, number>
   member_value: Record<string, number>
   legal_percent: Record<string, number>
-  adjustments: { member_id: string; reason: string; article?: string; delta?: number }[]
+  adjustments: { member_id: string; reason: string; article?: string; delta?: number; turn_ids?: string[] }[]
+  established_facts?: EstablishedFact[]
+  open_questions?: string[]
+  discretion?: number
   conditions: string[]
   citations: string[]
   rationale: string
+  disclaimer?: string
   estate_total: number
   community_deduction: number
+}
+
+export interface EstablishedFact {
+  member_id: string
+  kind: 'admit_neglect' | 'waive_share' | 'concede' | 'support_confirmed'
+  article: string
+  text: string
+  turn_ids: string[]
 }
 
 export interface DoneStats {
