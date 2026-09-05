@@ -25,6 +25,18 @@ from .mock import (
     BYSTANDER, EXEC_NEGOTIATION, EXEC_OPENING, EXEC_ROUND, EXEC_VERDICT, FOCUS_POOL, REACTION_TO,
     MockContext, mock_speech,
 )
+
+# 争议焦点归纳：LLM 输出条数上限（回退到 FOCUS_POOL 时也遵守）
+FOCUS_MIN, FOCUS_MAX = 2, 4
+
+# 判决书方法论：执行官裁决 prompt 的推理链（参考民事审判"请求权基础→构成要件→涵射"三段论）
+VERDICT_METHOD = (
+    "请按以下审判方法推理（只在内部思考时使用，输出的 JSON 见下方格式）：\n"
+    "1. 先确定本案适用法定继承（第1127条起的顺序规则），再分解相应构成要件；\n"
+    "2. 把当庭确认的法律事实逐件映射到构成要件（谁尽了主要扶养义务 / 谁自认未尽义务 / 谁放弃）；\n"
+    "3. 未被确认的指控与口头主张不得进入涵射，只能进 open_questions；\n"
+    "4. 结论 = 法定份额（大前提法条 + 小前提事实）± 当庭事实的酌情调整。"
+)
 from .personas import AVAILABLE_ARTICLES, EXECUTOR_ID, AgentSpec, build_agent_specs, persona_prompt
 
 PHASES = ["opening", "statements", "debate", "negotiation", "verdict"]
@@ -95,6 +107,7 @@ class Orchestrator:
         self.legal_percent = {sh.member_id: sh.percent for sh in self.legal.shares}
         self.prefs = default_preferences(self.case.members, self.case.assets)
         self.last_attacker: dict[str, str] = {}
+        self.focus_issues: list[str] = []
         self.stats = {"turns": 0, "attacks": 0, "alliances": 0, "concessions": 0, "proposals": 0, "ghost": 0}
         self.clients: dict[str, LLMClient | None] = self._build_clients()
 
@@ -235,6 +248,7 @@ class Orchestrator:
             "last_attacker": self.last_attacker,
             "prefs": self.prefs,
             "paused": self.s.paused,
+            "focus_issues": list(self.focus_issues),
         }
 
     def case_facts_text(self) -> str:
@@ -487,7 +501,16 @@ class Orchestrator:
             "debate": f"现在是第 {round_no} 轮辩论{('，本轮焦点：' + focus) if focus else ''}。回应别人，攻击或结盟，推进你的目标。",
             "negotiation": "现在是最后协商阶段：给出你的最终方案和底线，可以做出让步来换取你最想要的东西。",
         }[phase]
-        user = f"{phase_hint}\n\n【此前发言（按时间顺序，越靠后越新）】\n{self._transcript_block()}"
+        # 环节防漂移：明确告知当前环节与身份，抑制在辩论阶段举证、在陈述阶段总结等串台行为
+        phase_exclusive = {
+            "statements": "开场陈述（而非法庭辩论或协商）",
+            "debate": "法庭辩论（而非法庭调查或最后陈述）",
+            "negotiation": "最后协商（而非法庭辩论或裁决）",
+        }[phase]
+        user = (
+            f"【注意】1、当前为{phase_exclusive}环节。2、你是{m.name}。\n\n{phase_hint}\n\n"
+            f"【此前发言（按时间顺序，越靠后越新）】\n{self._transcript_block()}"
+        )
         if attacked_by and attacked_by in self.specs:
             user += f"\n\n【注意】刚才 {self.specs[attacked_by].name} 点名针对了你，先正面回应 TA，再说你自己的诉求。"
         if interjection:
@@ -556,6 +579,10 @@ class Orchestrator:
                 if not self._already_spoke(m.id, "statements", 0):
                     await self._debater_turn(m, "statements", 0)
                 return {"phase": "statements", "speaker_index": idx + 1}
+            # 陈述结束 → 归纳争议焦点（幂等：续庭不重归纳），再进入辩论
+            if not self.focus_issues:
+                self.focus_issues = await self._summarize_focus_issues()
+                self._emit_focus()
             return {"phase": "debate", "debate_round": 1, "speaker_index": -1, "focus": ""}
 
         if phase == "debate":
@@ -595,7 +622,13 @@ class Orchestrator:
             self.s.status = "done"
             self.s.emit("done", {"stats": self.stats, "drama_score": self._drama_score()})
             self.s.persist_snapshot(self._extras())
+            self._release()
         return {"phase": "verdict", "finished": True}
+
+    def _release(self) -> None:
+        """闭庭后释放编排器注册（Session 保留供快照/导出；需要时可从 SQLite 重建）。"""
+        from .court_graph import unregister_orchestrator
+        unregister_orchestrator(self.s.id)
 
     async def run(self, resume: bool = False) -> None:
         from langgraph.types import Command
@@ -605,7 +638,7 @@ class Orchestrator:
         s = self.s
         register_orchestrator(self)
         graph = get_graph()
-        config = graph_config(s.id)
+        config = graph_config(s.id, len(self.debaters), self.case.rounds)
         try:
             if not resume:
                 self._emit_session_start()
@@ -675,28 +708,6 @@ class Orchestrator:
         await self._after_speech(turn)
         await self._sleep(0.5)
 
-    async def _statements(self) -> None:
-        self.s.emit("phase", {"phase": "statements", "round": 0, "label": "陈述"})
-        for m in self.debaters:
-            await self._debater_turn(m, "statements", 0)
-
-    async def _debate_intro(self, r: int) -> str:
-        top = max(self.case.assets, key=lambda a: a.value) if self.case.assets else None
-        focus = self.rng.choice(FOCUS_POOL).format(asset=top.name if top else "遗产")
-        self._status(EXECUTOR_ID, "thinking")
-        await self._sleep(0.5)
-        fallback = self.rng.choice(EXEC_ROUND).format(r=r, focus=focus)
-        gen, _ = await self._llm_stream_or_fallback(EXECUTOR_ID, self._executor_messages(
-            f"第 {r} 轮辩论开始。请用 40~80 字宣布本轮焦点「{focus}」，可以点评一下上一轮谁说得离谱。不要 JSON。\n\n此前发言：\n{self._transcript_block(8)}"), fallback)
-        await self._speak(EXECUTOR_ID, "debate", r, gen, expect_meta=False)
-        return focus
-
-    async def _debate_round(self, r: int) -> None:
-        self.s.emit("phase", {"phase": "debate", "round": r, "label": f"辩论 第{r}轮"})
-        focus = await self._debate_intro(r)
-        for m in self._debate_order(r):
-            await self._debater_turn(m, "debate", r, focus)
-
     async def _negotiation_intro(self) -> None:
         if not self._phase_emitted("negotiation"):
             self.s.emit("phase", {"phase": "negotiation", "round": 0, "label": "协商"})
@@ -706,10 +717,75 @@ class Orchestrator:
             "辩论结束，请宣布进入协商阶段，要求每人给出最终方案与底线。40~70字，不要 JSON。"), self.rng.choice(EXEC_NEGOTIATION))
         await self._speak(EXECUTOR_ID, "negotiation", 0, gen, expect_meta=False)
 
-    async def _negotiation(self) -> None:
-        await self._negotiation_intro()
-        for m in self.debaters:
-            await self._debater_turn(m, "negotiation", 0)
+    # ---------------------------------------------------- focus issues（焦点归纳）
+    def _fallback_focus_issues(self) -> list[str]:
+        """LLM 不可用 / 输出不合法时，按案情确定性挑选争议焦点。"""
+        top = max(self.case.assets, key=lambda a: a.value) if self.case.assets else None
+        pool = [f.format(asset=top.name if top else "遗产") for f in FOCUS_POOL]
+        return self.rng.sample(pool, k=min(len(pool), FOCUS_MAX))
+
+    def _sanitize_focus_issues(self, raw: Any) -> list[str]:
+        """LLM 归纳出的焦点必须是短句列表，清洗后去重限量。"""
+        if not isinstance(raw, list):
+            return []
+        issues: list[str] = []
+        for item in raw:
+            if not isinstance(item, str):
+                continue
+            text = item.strip().strip("；;。.")[:60]
+            if text:
+                issues.append(text)
+        return list(dict.fromkeys(issues))[:FOCUS_MAX]
+
+    async def _summarize_focus_issues(self) -> list[str]:
+        """陈述结束、辩论开始前：执行官从开场陈述归纳 2~4 个争议焦点（焦点驱动辩论）。"""
+        self._status(EXECUTOR_ID, "thinking")
+        await self._sleep(0.4)
+        exec_client = self.clients.get(EXECUTOR_ID)
+        if exec_client is None:
+            return self._fallback_focus_issues()
+        statements_txt = "\n".join(
+            f"- {t.name}：{t.text.strip()[:200]}"
+            for t in self.s.transcript if t.phase == "statements"
+        ) or "（无人陈述）"
+        ask = (
+            "陈述阶段结束。请从以下开场陈述中归纳本场听证会的争议焦点，只输出一个 JSON 数组，"
+            f"每个元素是一个不超过 30 字的焦点问句或短语，共 {FOCUS_MIN}~{FOCUS_MAX} 个。\n"
+            "要求：只围绕本案真实的遗产、人物与诉求，不得虚构；措辞供口头宣读使用。\n"
+            "示例：[\"学区房的归属与折价补偿\",\"谁对被继承人尽了主要扶养义务\"]\n\n"
+            f"【开场陈述】\n{statements_txt}\n\n【案情数据】\n{self._assets_block()}\n{self._people_block()}"
+        )
+        try:
+            raw = await exec_client.complete(self._executor_messages(ask), json_mode=True, temperature=0.3)
+            issues = self._sanitize_focus_issues(extract_json(raw))
+            if issues:
+                return issues
+        except LLMError:
+            pass
+        return self._fallback_focus_issues()
+
+    def _emit_focus(self) -> None:
+        if self.focus_issues:
+            self.s.emit("focus", {"issues": list(self.focus_issues)})
+
+    def _focus_for_round(self, r: int) -> str:
+        """第 r 轮辩论围绕第 ((r-1) mod n) 个焦点；没有焦点时回退随机池。"""
+        if self.focus_issues:
+            return self.focus_issues[(r - 1) % len(self.focus_issues)]
+        top = max(self.case.assets, key=lambda a: a.value) if self.case.assets else None
+        return self.rng.choice(FOCUS_POOL).format(asset=top.name if top else "遗产")
+
+    async def _debate_intro(self, r: int) -> str:
+        focus = self._focus_for_round(r)
+        self._status(EXECUTOR_ID, "thinking")
+        await self._sleep(0.5)
+        focus_list = "；".join(f"（{chr(0x4E8C - 1 + i)}）{f}" for i, f in enumerate(self.focus_issues, 1))
+        fallback = self.rng.choice(EXEC_ROUND).format(r=r, focus=focus)
+        gen, _ = await self._llm_stream_or_fallback(EXECUTOR_ID, self._executor_messages(
+            f"第 {r} 轮辩论开始。本场争议焦点：{focus_list or focus}。本轮聚焦「{focus}」。"
+            f"请用 40~80 字宣布本轮焦点，可以点评一下上一轮谁说得离谱。不要 JSON。\n\n此前发言：\n{self._transcript_block(8)}"), fallback)
+        await self._speak(EXECUTOR_ID, "debate", r, gen, expect_meta=False)
+        return focus
 
     # ----------------------------------------------------------------- verdict
     @property
@@ -718,11 +794,20 @@ class Orchestrator:
 
     def _bounded_targets(self, proposed: dict[str, float] | None, adjustments: list[dict],
                          adjustable: set[str] | None = None) -> dict[str, float]:
-        """把份额建议夹回法定份额 ±discretion；没有已确认事实的成员钉在法定份额上，只随归一化被动变动。"""
+        """把份额建议投影到总和为 100 的法定份额 ±discretion 区间内。"""
         base = {sh.member_id: sh.percent for sh in self.legal.shares if sh.eligible and sh.percent > 0}
         if not base:
             return {}
         limit = self.discretion
+        lower = {mid: max(0.0, pct - limit) for mid, pct in base.items()}
+        upper = {mid: min(100.0, pct + limit) for mid, pct in base.items()}
+        # 法定份额保留两位小数后偶尔合计为 99.99/100.01；零裁量时以归一化法定份额作为唯一可行点。
+        if sum(lower.values()) > 100.0 or sum(upper.values()) < 100.0:
+            scale = 100.0 / sum(base.values())
+            anchor = {mid: pct * scale for mid, pct in base.items()}
+            lower = {mid: max(0.0, pct - limit) for mid, pct in anchor.items()}
+            upper = {mid: min(100.0, pct + limit) for mid, pct in anchor.items()}
+
         targets: dict[str, float] = {}
         for mid, pct in base.items():
             want = pct
@@ -731,9 +816,29 @@ class Orchestrator:
                     want = float(proposed[mid])
                 except (TypeError, ValueError):
                     want = pct
-            targets[mid] = max(0.0, min(100.0, max(pct - limit, min(pct + limit, want))))
-        total = sum(targets.values()) or 1.0
-        targets = {k: v * 100 / total for k, v in targets.items()}
+            targets[mid] = max(lower[mid], min(upper[mid], want))
+
+        # 在仍有余量的成员间均摊差额；已经触及上/下限的成员不再参与，
+        # 避免"先夹限、再整体归一化"重新突破裁量边界。
+        for _ in range(len(targets) + 1):
+            residual = 100.0 - sum(targets.values())
+            if abs(residual) < 1e-9:
+                break
+            if residual > 0:
+                movable = [mid for mid, value in targets.items() if value < upper[mid] - 1e-12]
+                if not movable:
+                    break
+                share = residual / len(movable)
+                for mid in movable:
+                    targets[mid] += min(share, upper[mid] - targets[mid])
+            else:
+                movable = [mid for mid, value in targets.items() if value > lower[mid] + 1e-12]
+                if not movable:
+                    break
+                share = -residual / len(movable)
+                for mid in movable:
+                    targets[mid] -= min(share, targets[mid] - lower[mid])
+
         for adj in adjustments:
             adj["delta"] = round(targets.get(adj.get("member_id", ""), 0) - base.get(adj.get("member_id", ""), 0), 1)
         adjustments[:] = [a for a in adjustments if abs(a.get("delta", 0)) >= 0.3]
@@ -836,6 +941,113 @@ class Orchestrator:
                 lines.append(f"- {t.name} 指责 {self.specs[meta['target']].name}（发言 {t.turn_id}）")
         return "\n".join(lines[:12]) or "（无）"
 
+    def _rule_judgment(self, facts: list[dict], adjustments: list[dict]) -> dict:
+        """LLM 不可用时由规则引擎生成三段式判决书骨架。"""
+        names = "、".join(self.specs[m].name for m in self.legal_percent if self.legal_percent[m] > 0)
+        findings = (
+            f"经审理查明：被继承人 {self.case.decedent_name} 遗留财产净额 {self.legal.estate_total:.0f} 万元"
+            f"（其中夫妻共同财产析出 {self.legal.community_deduction:.0f} 万元归配偶先行取得）。"
+            f"出席当事人 {names}。"
+            + (f"当庭确认的法律事实共 {len(facts)} 项。" if facts else "无当庭确认的酌情调整事实。")
+        )
+        reason_bits = [f"本案适用第{'一' if self.legal.order_used == 1 else '二'}顺序法定继承（第1127条）"]
+        if self.legal.community_deduction > 0:
+            reason_bits.append("夫妻共同财产先析出一半（第1153条）")
+        if facts:
+            reason_bits.append("；".join(f"{self.specs[f['member_id']].name}{f['text'].split('，')[0]}" for f in facts[:4])
+                               + f"，故在法定份额 ±{self.discretion:.0f} 个百分点内酌情调整（第1130、1132条）")
+        else:
+            reason_bits.append("无当庭成立的多分少分事由，各继承人按均等份额分配")
+        reasoning = "本院认为：" + "；".join(reason_bits) + "。"
+        orders = []
+        for mid, pct in sorted(self.legal_percent.items(), key=lambda kv: -kv[1]):
+            if pct <= 0:
+                continue
+            orders.append(f"{self.specs[mid].name} 分得遗产净额的 {pct:.1f}%")
+        pets = [a for a in self.case.assets if a.type == "pet"]
+        if pets:
+            orders.append(f"{pets[0].name} 作为遗产按附义务方式归最宜照护者（第1144条）")
+        orders.append("不可分割资产按有利于利用与生活需要原则处理，差额以折价补偿找平（第1156条）")
+        return {"findings": findings, "reasoning": reasoning,
+                "orders": [f"{'一二三四五六七八九十'[i]}、{o}" for i, o in enumerate(orders[:10])]}
+
+    def _merge_judgment(self, raw: Any, fallback: dict) -> dict:
+        """合并 LLM 三段式判决书；字段缺失或为空时用规则兜底补齐。"""
+        if not isinstance(raw, dict):
+            return fallback
+        merged = dict(fallback)
+        for key in ("findings", "reasoning"):
+            val = str(raw.get(key) or "").strip()
+            if val:
+                merged[key] = val[:600]
+        orders = raw.get("orders")
+        if isinstance(orders, list):
+            clean = [str(o).strip() for o in orders if str(o).strip()]
+            if clean:
+                merged["orders"] = clean[:8]
+        return merged
+
+    def _sanitize_unaddressed(self, raw: Any) -> list[dict]:
+        """漏接分析：每条必须指向真实出席者，strongest/missed 各限 60 字。"""
+        if not isinstance(raw, list):
+            return []
+        out: list[dict] = []
+        seen: set[str] = set()
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            mid = item.get("member_id")
+            if mid not in self.specs or mid == EXECUTOR_ID or mid in seen:
+                continue
+            entry = {"member_id": mid, "strongest": str(item.get("strongest") or "").strip()[:60],
+                     "missed": str(item.get("missed") or "").strip()[:60]}
+            if entry["strongest"] or entry["missed"]:
+                out.append(entry)
+                seen.add(mid)
+        return out[:6]
+
+    def _rule_settlement(self, proposed: dict[str, float]) -> dict:
+        """LLM 不可用时的和解建议骨架：围绕最大不可分资产生成 A/B/C 三档让步方案。"""
+        top = max((a for a in self.case.assets if not a.divisible), key=lambda a: a.value, default=None)
+        top = top or (self.case.assets[0] if self.case.assets else None)
+        asset_name = top.name if top else "主要资产"
+        ranked = sorted(proposed.items(), key=lambda kv: -kv[1])
+        loser = self.specs[ranked[-1][0]].name if len(ranked) >= 2 and ranked[-1][0] in self.specs else "份额最小方"
+        winner = self.specs[ranked[0][0]].name if ranked and ranked[0][0] in self.specs else "份额最大方"
+        second = self.specs[ranked[1][0]].name if len(ranked) >= 2 and ranked[1][0] in self.specs else "其他继承人"
+        return {
+            "overview": (f"本案各方对{asset_name}的情感价值分歧大于金额分歧，判决后上诉与反目的成本远高于让步本身；"
+                         "若进入调解，建议围绕\"资产归一方 + 现金补偿其他人\"的框架在三档方案间选择。"),
+            "plans": [
+                {"tier": "A", "title": "让步最大方", "detail": f"{winner} 取得{asset_name}，并按略高于评估价的金额补偿 {second} 与 {loser}，各方即时清结、互不追诉。"},
+                {"tier": "B", "title": "折中", "detail": f"{asset_name} 归 {winner}，可分财产向 {second} 倾斜 3~5 个百分点作为情感补偿，{loser} 获得固定现金。"},
+                {"tier": "C", "title": "底线", "detail": "严格按法定份额执行，不可分资产共有或竞价取得，仅就照护与纪念物归属作礼让性约定。"},
+            ],
+        }
+
+    def _merge_settlement(self, raw: Any, fallback: dict) -> dict:
+        if not isinstance(raw, dict):
+            return fallback
+        merged = dict(fallback)
+        overview = str(raw.get("overview") or "").strip()
+        if overview:
+            merged["overview"] = overview[:400]
+        plans = raw.get("plans")
+        if isinstance(plans, list):
+            clean = []
+            for p in plans:
+                if not isinstance(p, dict):
+                    continue
+                tier = str(p.get("tier") or "").strip()[:2]
+                detail = str(p.get("detail") or "").strip()[:200]
+                if detail:
+                    clean.append({"tier": tier or chr(ord("A") + len(clean)),
+                                  "title": str(p.get("title") or "").strip()[:20] or "方案",
+                                  "detail": detail})
+            if clean:
+                merged["plans"] = clean[:3]
+        return merged
+
     def _pet_conditions(self, allocation: Allocation) -> list[str]:
         conds = []
         for a in self.case.assets:
@@ -864,6 +1076,9 @@ class Orchestrator:
         citations = sorted({b for sh in self.legal.shares for b in sh.basis} | {"1130", "1132", "1156"})
         speech = ""
         asset_pref: dict[str, str] = {}
+        judgment = self._rule_judgment(facts, adjustments)
+        unaddressed: list[dict] = []
+        settlement = self._rule_settlement(proposed)
         limit = self.discretion
 
         exec_client = self.clients.get(EXECUTOR_ID)
@@ -877,22 +1092,35 @@ class Orchestrator:
                 f"- [{f['member_id']}] {f['text']}（第{f['article']}条，发言 {'、'.join(f['turn_ids'])}）" for f in facts
             ) or "（本场没有成立任何可据以调整份额的事实）"
             engine_txt = "\n".join(f"- {self.specs[m].name}：{p:.1f}%" for m, p in proposed.items())
+            negotiator_ids = ", ".join(f"{m.id}({self.specs[m.id].name})" for m in self.debaters if m.id in proposed)
             ask = (
                 "请作出最终裁决，只输出一个 JSON 对象，字段：\n"
-                '{"speech": "裁决词，150~220字，有法条有人情有幽默，最后一句是落槌",\n'
+                '{"speech": "宣判词，150~220字，有法条有人情有幽默，最后一句是落槌",\n'
+                ' "judgment": {\n'
+                '   "findings": "经审理查明：列举当庭确认的事实与遗产范围，80~150字",\n'
+                '   "reasoning": "本院认为：先引法条（大前提），再引已确认事实（小前提），最后得出份额结论，100~180字",\n'
+                '   "orders": ["判决主文，逐条编号：一、…… 二、……（份额、资产归属、补偿、宠物照护）"]},\n'
                 ' "final_percent": {"成员id": 最终应得遗产净额百分比},  // 只能包含这些有继承权的人：' + eligible_ids +
                 f'，合计100，相对法定份额偏移不超过 {limit:.0f} 个百分点\n'
                 ' "adjustments": [{"member_id": "id", "reason": "调整理由", "article": "1130", "turn_ids": ["发言id"]}],\n'
                 ' "asset_preferences": {"资产id": "成员id"},  // 不可分割资产（房、车、宠物、收藏品）建议归谁\n'
                 ' "conditions": ["附加条件，如宠物照护义务"],\n'
                 ' "open_questions": ["现有发言不足以认定、需要另行举证的问题"],\n'
+                ' "unaddressed": [{"member_id": "id", "strongest": "该方最有说服力的论点一句", "missed": "该方未回应的对方论点一句"}],\n'
+                '   // 漏接分析：只填这些成员：' + negotiator_ids + '；strongest/missed 各不超过40字\n'
+                ' "settlement": {\n'
+                '   "overview": "若各方不接受判决、走调解而非诉讼，前景如何，50~90字",\n'
+                '   "plans": [{"tier": "A", "title": "让步最大方", "detail": "谁让出什么、换回什么，40~80字"},'
+                '{"tier": "B", "title": "折中", "detail": "…"}, {"tier": "C", "title": "底线", "detail": "…"}]},\n'
                 ' "citations": ["1127", "1130"],\n'
                 ' "rationale": "为什么这样分（面向普通人的解释，100字内）"}\n\n'
+                "【审判方法论】\n" + VERDICT_METHOD + "\n\n"
                 "【裁决纪律（必须遵守）】\n"
                 "1. 只有下面【已确认的法律事实】可以作为偏离法定份额的依据；没有出现在其中的成员，final_percent 必须等于法定份额。\n"
                 "2. 出席者对他人的指控、结盟、情绪、口才，一律不是调整依据；如果你觉得某项指控可能重要，写进 open_questions。\n"
                 "3. 发言中出现但不在【剧情背景】和案情记录里的事实（例如“爸口头答应把房子给我”），视为主张，不得采纳。\n"
-                "4. 每条 adjustments 必须引用对应事实的 turn_ids；不能引用的会被丢弃。\n\n"
+                "4. 每条 adjustments 必须引用对应事实的 turn_ids；不能引用的会被丢弃。\n"
+                "5. judgment / unaddressed / settlement 是文学层，可以发挥；但其中的事实引用同样必须来自【已确认的法律事实】。\n\n"
                 f"【已确认的法律事实】\n{facts_txt}\n\n"
                 f"【规则引擎依据上述事实给出的份额建议】\n{engine_txt}\n\n"
                 f"【未被承认的指控（仅供参考，不得据此调整）】\n{self._contested_claims_text()}\n\n"
@@ -935,6 +1163,9 @@ class Orchestrator:
                     open_questions = list(dict.fromkeys(open_questions + [str(q) for q in data["open_questions"]]))[:8]
                 if isinstance(data.get("citations"), list):
                     citations = sorted(set(citations) | {str(c) for c in data["citations"] if str(c) in ARTICLE_SHORT})
+                judgment = self._merge_judgment(data.get("judgment"), judgment)
+                unaddressed = self._sanitize_unaddressed(data.get("unaddressed"))
+                settlement = self._merge_settlement(data.get("settlement"), settlement)
                 rationale = str(data.get("rationale") or "")
                 speech = str(data.get("speech") or "")
             except LLMError as e:
@@ -976,6 +1207,9 @@ class Orchestrator:
 
         verdict = {
             "speech": speech,
+            "judgment": judgment,
+            "unaddressed": unaddressed,
+            "settlement": settlement,
             "allocation": allocation,
             "compensations": compensations,
             "targets": {k: round(v, 1) for k, v in targets.items()},
@@ -1031,7 +1265,17 @@ def export_markdown(session: Session) -> str:
         lines.append("")
     if session.verdict:
         v = session.verdict
-        lines += ["## 最终裁决", "", v["speech"], "", "### 分配结果", ""]
+        lines += ["## 最终裁决", "", v["speech"], ""]
+        jd = v.get("judgment") or {}
+        if jd.get("findings") or jd.get("reasoning") or jd.get("orders"):
+            lines += ["### 判决书", ""]
+            if jd.get("findings"):
+                lines += [f"**经审理查明**：{jd['findings']}", ""]
+            if jd.get("reasoning"):
+                lines += [f"**本院认为**：{jd['reasoning']}", ""]
+            if jd.get("orders"):
+                lines += ["**判决如下**：", ""] + [f"- {o}" for o in jd["orders"]] + [""]
+        lines += ["### 分配结果", ""]
         for a in c.assets:
             row = v["allocation"].get(a.id, {})
             parts = "，".join(f"{next((s.name for s in session.specs if s.id == mid), mid)} {pct}%" for mid, pct in row.items())
@@ -1055,6 +1299,20 @@ def export_markdown(session: Session) -> str:
             lines.append("")
         if v.get("open_questions"):
             lines += ["### 需要进一步确认的问题", ""] + [f"- {q}" for q in v["open_questions"]] + [""]
+        if v.get("unaddressed"):
+            lines += ["### 各方论点评估（漏接分析）", ""]
+            for u in v["unaddressed"]:
+                who = next((s.name for s in session.specs if s.id == u["member_id"]), u["member_id"])
+                lines.append(f"- **{who}**：最有说服力——{u.get('strongest') or '（无）'}；未回应——{u.get('missed') or '（无）'}")
+            lines.append("")
+        st = v.get("settlement") or {}
+        if st.get("overview") or st.get("plans"):
+            lines += ["### 和解建议（若不接受判决）", ""]
+            if st.get("overview"):
+                lines += [st["overview"], ""]
+            for p in st.get("plans") or []:
+                lines.append(f"- **方案 {p.get('tier', '')} · {p.get('title', '')}**：{p.get('detail', '')}")
+            lines.append("")
         if v["conditions"]:
             lines += ["### 附加条件", ""] + [f"- {x}" for x in v["conditions"]] + [""]
         lines += ["### 法条依据", ""] + [f"- 第{cid}条 {ARTICLE_SHORT.get(cid, '')}" for cid in v["citations"]]

@@ -72,11 +72,15 @@ export const api = {
     fetch(`/api/sessions/${sessionId}/interject`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
     }).then((r) => json<{ ok: boolean }>(r)),
+  pause: (sessionId: string) =>
+    fetch(`/api/sessions/${sessionId}/pause`, { method: 'POST' }).then((r) => json<{ ok: boolean; status: string }>(r)),
+  resume: (sessionId: string) =>
+    fetch(`/api/sessions/${sessionId}/resume`, { method: 'POST' }).then((r) => json<{ ok: boolean; status: string }>(r)),
   exportUrl: (sessionId: string) => `/api/sessions/${sessionId}/export`,
 }
 
 export const SSE_EVENTS = [
-  'session_start', 'phase', 'agent_status', 'speech_start', 'speech_delta', 'speech_end',
+  'session_start', 'phase', 'focus', 'agent_status', 'speech_start', 'speech_delta', 'speech_end',
   'relation', 'reaction', 'ghost', 'notice', 'gavel', 'verdict', 'done', 'error',
 ] as const
 

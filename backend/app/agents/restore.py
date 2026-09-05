@@ -44,6 +44,8 @@ def rebuild_orchestrator(session: Session, extras: dict) -> Orchestrator:
         orch.prefs = extras["prefs"]
     if extras.get("stats"):
         orch.stats.update(extras["stats"])
+    if extras.get("focus_issues"):
+        orch.focus_issues = list(extras["focus_issues"])
     return orch
 
 

@@ -1,49 +1,92 @@
 @import "tailwindcss";
 @import "@pxlkit/ui-kit/styles.css";
+@import "@fontsource/fusion-pixel-12px-proportional-sc";
 @source "../node_modules/@pxlkit/ui-kit";
 
+/* ──────────────────────────────────────────────────────────────
+ * HeirArena · 像素法庭 令牌
+ *
+ * 场景：深胡桃木的听证庭；卷宗是羊皮纸；判决用黄铜与火漆。
+ * ink-*  = 木色暗底（不是中性黑）
+ * gold-* = 黄铜（法槌、执行官）
+ * seal   = 火漆红（攻击 / 异议）
+ * jade   = 玉绿（结盟 / 就绪）
+ * ghost  = 幽灵紫（逝者 / AI 分身）
+ * paper  = 羊皮纸（法庭记录）
+ * ────────────────────────────────────────────────────────────── */
 @theme {
-  --color-ink-950: #07070a;
-  --color-ink-900: #0b0c11;
-  --color-ink-850: #101117;
-  --color-ink-800: #171922;
-  --color-ink-700: #202430;
-  --color-ink-600: #303746;
-  --color-ink-400: #6d7588;
-  --color-ink-300: #9aa2b4;
-  --color-ink-200: #ced3dd;
-  --color-ink-100: #f7f4ed;
+  --color-ink-950: #17120f;
+  --color-ink-900: #1e1712;
+  --color-ink-850: #241b16;
+  --color-ink-800: #2e231c;
+  --color-ink-700: #3c2e25;
+  --color-ink-600: #55443a;
+  --color-ink-400: #a08d78;
+  --color-ink-300: #c2b198;
+  --color-ink-200: #e0d3b9;
+  --color-ink-100: #f5ecd9;
 
-  --color-gold-300: #f8dda4;
-  --color-gold-400: #e9be6f;
-  --color-gold-500: #d6a24e;
-  --color-gold-600: #ae7932;
+  --color-gold-300: #f3d38a;
+  --color-gold-400: #e2b25a;
+  --color-gold-500: #c9953c;
+  --color-gold-600: #8f6522;
 
   --color-wood-300: #b8794a;
   --color-wood-500: #8a5a34;
   --color-wood-700: #5c3a21;
   --color-wood-900: #3a2414;
 
-  --color-paper: #f3e9d2;
+  --color-paper-100: #f6ecd3;
+  --color-paper-200: #f2e6c8;
+  --color-paper-300: #e6d5a8;
+  --color-paper-400: #d2bb85;
+  --color-paper-ink: #2b1c10;
+  --color-paper-muted: #7a6142;
 
+  --color-seal-400: #ea6a5b;
+  --color-seal-500: #d9483b;
+  --color-seal-700: #8e2a22;
+
+  --color-jade-300: #7fd9ad;
+  --color-jade-500: #3fb27f;
+  --color-jade-700: #23694b;
+
+  --color-ghost-300: #c8b8ff;
+  --color-ghost-400: #a58bff;
+  --color-ghost-700: #4c3b8a;
+
+  --color-paper: #f2e6c8;
+
+  --font-pixel: "Fusion Pixel 12px Proportional SC", "PingFang SC", "Microsoft YaHei", monospace;
   --font-sans: "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", "Helvetica Neue", Arial, system-ui, sans-serif;
-  --font-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", Georgia, serif;
+  --font-serif: "Fusion Pixel 12px Proportional SC", "PingFang SC", "Microsoft YaHei", monospace;
   --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
-  /* Pxlkit UI Kit 默认用 Press Start 2P 像素字，中文不适用，指回项目等宽字体 */
-  --font-pixel: "JetBrains Mono", "Cascadia Code", Consolas, "PingFang SC", "Microsoft YaHei", monospace;
 
-  --animate-float: float 3.2s ease-in-out infinite;
-  --animate-bob: bob 0.55s ease-in-out infinite;
-  --animate-shake: shake 0.45s ease-in-out;
-  --animate-pulse-ring: pulse-ring 1.4s ease-out infinite;
+  /* 像素世界没有圆角：全站 rounded-* 一律压到 2px */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+
+  --animate-float: float 3.2s steps(4) infinite;
+  --animate-bob: bob 0.55s steps(2) infinite;
+  --animate-shake: shake 0.45s steps(5);
+  --animate-pulse-ring: pulse-ring 1.4s steps(6) infinite;
   --animate-spin-slow: spin 6s linear infinite;
   --animate-blink: blink 4s infinite;
   --animate-dash: dash 1.2s linear infinite;
   --animate-caret: caret 0.9s steps(2) infinite;
-  --animate-rise: rise 2.2s ease-out forwards;
+  --animate-rise: rise 2.2s steps(12) forwards;
   --animate-glitch: glitch 2.6s steps(1) infinite;
-  --animate-wag: wag 0.7s ease-in-out infinite;
+  --animate-wag: wag 0.7s steps(3) infinite;
   --animate-shimmer: shimmer 3.6s ease-in-out infinite;
+  --animate-stamp: stamp 0.5s cubic-bezier(.2,1.6,.4,1) both;
+  --animate-marquee: marquee 18s linear infinite;
+  --animate-blink-step: blink-step 1s steps(2) infinite;
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -96,6 +139,17 @@
     18% { opacity: 0.45; }
     42% { transform: translateX(230%) skewX(-18deg); opacity: 0; }
   }
+  @keyframes stamp {
+    0% { transform: scale(2.2) rotate(-18deg); opacity: 0; }
+    60% { transform: scale(0.94) rotate(-9deg); opacity: 1; }
+    100% { transform: scale(1) rotate(-10deg); opacity: 1; }
+  }
+  @keyframes marquee {
+    to { transform: translateX(-50%); }
+  }
+  @keyframes blink-step {
+    50% { opacity: 0; }
+  }
 }
 
 :root {
@@ -103,28 +157,89 @@
   font-synthesis: none;
 }
 
-/* Pxlkit UI Kit 主题：把 --retro-* 令牌映射到 HeirArena 的黑金色板 */
+/* Pxlkit UI Kit：--retro-* 与 --color-retro-* 都要覆盖（见 styles.css 说明），否则工具类仍读默认霓虹色 */
 .dark {
-  --retro-bg: #07070a;
-  --retro-surface: #0f1016;
-  --retro-card: #171922;
-  --retro-border: rgba(255, 255, 255, 0.1);
-  --retro-border-strong: rgba(255, 255, 255, 0.22);
-  --retro-text: #f7f4ed;
-  --retro-muted: #6d7588;
-  --retro-primary: #d6a24e;
-  --retro-secondary: #e9be6f;
-  --retro-accent: #34d399;
-  --retro-gold: #d6a24e;
-  --retro-green: #34d399;
-  --retro-green-hover: #6ee7b7;
-  --retro-cyan: #22d3ee;
-  --retro-red: #f87171;
-  --retro-purple: #a78bfa;
-  --retro-pink: #f472b6;
-  --retro-shadow-green: rgba(52, 211, 153, 0.25);
-  --retro-shadow-green-lg: rgba(52, 211, 153, 0.15);
-  --retro-shadow-gold: rgba(214, 162, 78, 0.3);
+  --retro-bg: #17120f;
+  --retro-surface: #1e1712;
+  --retro-card: #2e231c;
+  --retro-border: #4a3a2f;
+  --retro-border-strong: #7a6350;
+  --retro-text: #f5ecd9;
+  --retro-muted: #a08d78;
+  --retro-primary: #e2b25a;
+  --retro-secondary: #f3d38a;
+  --retro-accent: #3fb27f;
+  --retro-gold: #e2b25a;
+  --retro-green: #3fb27f;
+  --retro-green-hover: #7fd9ad;
+  --retro-cyan: #5cc8c0;
+  --retro-red: #d9483b;
+  --retro-purple: #a58bff;
+  --retro-pink: #f07aa8;
+  --retro-shadow-green: rgba(63, 178, 127, 0.35);
+  --retro-shadow-green-lg: rgba(63, 178, 127, 0.2);
+  --retro-shadow-gold: rgba(226, 178, 90, 0.35);
+
+  --color-retro-bg: #17120f;
+  --color-retro-surface: #1e1712;
+  --color-retro-card: #2e231c;
+  --color-retro-text: #f5ecd9;
+  --color-retro-border: #4a3a2f;
+  --color-retro-border-strong: #7a6350;
+  --color-retro-primary: #e2b25a;
+  --color-retro-secondary: #f3d38a;
+  --color-retro-accent: #3fb27f;
+  --color-retro-muted: #a08d78;
+  --color-retro-green: #3fb27f;
+  --color-retro-green-hover: #7fd9ad;
+  --color-retro-cyan: #5cc8c0;
+  --color-retro-red: #d9483b;
+  --color-retro-gold: #c9953c;
+  --color-retro-purple: #a58bff;
+  --color-retro-pink: #f07aa8;
+}
+
+/* 羊皮纸作用域：法庭记录（卷宗）内的 Pxlkit 组件走浅色令牌 */
+.parchment {
+  color: #2b1c10;
+  --retro-bg: #f2e6c8;
+  --retro-surface: #e9dab4;
+  --retro-card: #f6ecd3;
+  --retro-border: #c9b58a;
+  --retro-border-strong: #7a6142;
+  --retro-text: #2b1c10;
+  --retro-muted: #7a6142;
+  --retro-primary: #8f6522;
+  --retro-secondary: #c9953c;
+  --retro-accent: #23694b;
+  --retro-gold: #8f6522;
+  --retro-green: #23694b;
+  --retro-green-hover: #3fb27f;
+  --retro-cyan: #2b6f6a;
+  --retro-red: #8e2a22;
+  --retro-purple: #4c3b8a;
+  --retro-pink: #a83a63;
+  --retro-shadow-green: rgba(35, 105, 75, 0.3);
+  --retro-shadow-green-lg: rgba(35, 105, 75, 0.2);
+  --retro-shadow-gold: rgba(143, 101, 34, 0.3);
+
+  --color-retro-bg: #f2e6c8;
+  --color-retro-surface: #e9dab4;
+  --color-retro-card: #f6ecd3;
+  --color-retro-text: #2b1c10;
+  --color-retro-border: #c9b58a;
+  --color-retro-border-strong: #7a6142;
+  --color-retro-primary: #8f6522;
+  --color-retro-secondary: #c9953c;
+  --color-retro-accent: #23694b;
+  --color-retro-muted: #7a6142;
+  --color-retro-green: #23694b;
+  --color-retro-green-hover: #3fb27f;
+  --color-retro-cyan: #2b6f6a;
+  --color-retro-red: #8e2a22;
+  --color-retro-gold: #8f6522;
+  --color-retro-purple: #4c3b8a;
+  --color-retro-pink: #a83a63;
 }
 
 html, body, #root {
@@ -137,29 +252,17 @@ html {
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1100px 660px at 12% -12%, rgba(214, 162, 78, 0.16), transparent 62%),
-    radial-gradient(920px 600px at 94% 4%, rgba(103, 78, 167, 0.12), transparent 58%),
-    linear-gradient(180deg, #0c0d13 0%, #08090d 72%, #07070a 100%);
+  background-color: var(--color-ink-950);
+  /* 4px 抖动网点 + 顶部一束暖灯光：像素法庭的墙 */
+  background-image:
+    radial-gradient(900px 420px at 50% -80px, rgba(226, 178, 90, 0.16), transparent 70%),
+    repeating-conic-gradient(from 0deg, rgba(255, 236, 200, 0.028) 0% 25%, transparent 0% 50%);
+  background-size: auto, 8px 8px;
   color: var(--color-ink-100);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
-}
-
-body::before {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  content: "";
-  opacity: 0.2;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
-  background-size: 42px 42px;
-  mask-image: linear-gradient(to bottom, black, transparent 78%);
 }
 
 #root {
@@ -172,8 +275,8 @@ body::before {
   scrollbar-width: thin;
   scrollbar-color: var(--color-ink-600) transparent;
 }
-*::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: var(--color-ink-600); border-radius: 8px; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--color-ink-600); border: 2px solid var(--color-ink-950); }
 
 button, input, textarea, select {
   font: inherit;
@@ -193,58 +296,97 @@ button:not(:disabled) {
 }
 
 :focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-gold-400) 80%, white);
-  outline-offset: 3px;
+  outline: 2px solid var(--color-gold-300);
+  outline-offset: 2px;
+  border-radius: 0;
+}
+
+img, svg, canvas {
+  image-rendering: pixelated;
+}
+svg text { image-rendering: auto; }
+
+/* ─── 像素窗体 ──────────────────────────────────────────────── */
+
+/* RPG 对话框式面板：外 2px 深边 + 内 1px 亮线 + 4px 硬阴影 */
+@utility panel {
+  position: relative;
+  background: var(--color-ink-800);
+  border: 2px solid var(--color-ink-600);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 236, 200, 0.06),
+    4px 4px 0 0 rgba(0, 0, 0, 0.55);
+}
+
+/* 黄铜边的重点面板 */
+@utility panel-elevated {
+  position: relative;
+  background: var(--color-ink-800);
+  border: 2px solid var(--color-gold-600);
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 1px rgba(243, 211, 138, 0.12),
+    4px 4px 0 0 rgba(0, 0, 0, 0.6);
+}
+
+/* 凹陷的槽位 */
+@utility panel-inset {
+  background: var(--color-ink-950);
+  border: 2px solid var(--color-ink-700);
+  border-radius: 0;
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.55), inset -1px -1px 0 rgba(255, 236, 200, 0.05);
 }
 
 @utility glass {
-  background:
-    linear-gradient(145deg, rgba(28, 30, 40, 0.88), rgba(14, 15, 21, 0.78));
-  backdrop-filter: blur(18px) saturate(125%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  background: var(--color-ink-850);
+  border: 2px solid var(--color-ink-600);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 0.55);
 }
 
-@utility panel {
-  background:
-    linear-gradient(155deg, rgba(22, 24, 33, 0.96), rgba(13, 14, 20, 0.96));
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  border-radius: 1.125rem;
+/* 羊皮纸：法庭记录 */
+@utility paper-card {
+  position: relative;
+  color: var(--color-paper-ink);
+  background-color: var(--color-paper-200);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(122, 97, 66, 0.06) 0 1px, transparent 1px 4px),
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 250, 235, 0.55), transparent 70%);
+  border: 2px solid var(--color-paper-ink);
+  border-radius: 0;
   box-shadow:
-    0 24px 60px -38px rgba(0, 0, 0, 0.95),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
-}
-
-@utility panel-elevated {
-  background:
-    radial-gradient(480px 180px at 0% 0%, rgba(214, 162, 78, 0.07), transparent 60%),
-    linear-gradient(155deg, rgba(24, 26, 35, 0.98), rgba(13, 14, 20, 0.98));
-  border: 1px solid rgba(255, 255, 255, 0.085);
-  border-radius: 1.25rem;
-  box-shadow:
-    0 30px 80px -44px rgba(0, 0, 0, 0.95),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
-}
-
-@utility panel-inset {
-  background: rgba(5, 6, 9, 0.46);
-  border: 1px solid rgba(255, 255, 255, 0.055);
-  box-shadow: inset 0 1px 12px rgba(0, 0, 0, 0.18);
+    inset 0 0 0 1px var(--color-paper-400),
+    inset 0 0 0 3px var(--color-paper-200),
+    inset 0 0 0 4px var(--color-paper-400),
+    4px 4px 0 0 rgba(0, 0, 0, 0.6);
 }
 
 @utility gold-text {
-  background: linear-gradient(115deg, #fff0c8, #d6a24e 44%, #f8dda4 70%, #ae7932);
+  background: linear-gradient(180deg, #f8e2a8 0%, #e2b25a 48%, #c9953c 52%, #f3d38a 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
+@utility pixel-text {
+  font-family: var(--font-pixel);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
 @utility grid-bg {
   background-image:
-    linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
-  background-size: 40px 40px;
-  mask-image: linear-gradient(to bottom, black, transparent 92%);
+    linear-gradient(rgba(255,236,200,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,236,200,0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* CRT 扫描线：只给舞台用 */
+@utility scanlines {
+  background-image: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
 }
 
 @utility eyebrow {
@@ -252,10 +394,10 @@ button:not(:disabled) {
   align-items: center;
   gap: 0.5rem;
   color: var(--color-gold-400);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1rem;
-  letter-spacing: 0.18em;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -266,67 +408,104 @@ button:not(:disabled) {
 
 @utility input-base {
   width: 100%;
-  border-radius: 0.7rem;
-  border: 1px solid rgba(255,255,255,0.085);
-  background: rgba(7, 8, 12, 0.72);
-  padding: 0.58rem 0.72rem;
+  border-radius: 0;
+  border: 2px solid var(--color-ink-600);
+  background: var(--color-ink-950);
+  padding: 0.5rem 0.7rem;
   font-size: 0.85rem;
   color: var(--color-ink-100);
   outline: none;
-  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.18);
-  transition: border-color .16s, box-shadow .16s, background .16s;
-  &:hover { border-color: rgba(255,255,255,0.14); }
-  &:focus { border-color: var(--color-gold-500); background: rgba(9, 10, 15, 0.92); box-shadow: 0 0 0 3px rgba(214,162,78,0.13); }
+  box-shadow: inset 2px 2px 0 rgba(0, 0, 0, 0.5);
+  transition: border-color .12s, box-shadow .12s;
+  &:hover { border-color: var(--color-ink-400); }
+  &:focus { border-color: var(--color-gold-400); box-shadow: inset 2px 2px 0 rgba(0,0,0,.5), 0 0 0 2px var(--color-ink-950), 0 0 0 4px var(--color-gold-600); }
   &::placeholder { color: var(--color-ink-400); }
+  &:disabled { opacity: .55; }
 }
 
+/* 主按钮：黄铜块，按下去会真的下沉 */
 @utility btn-gold {
   display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
-  overflow: hidden; position: relative;
-  border-radius: .82rem; padding: .72rem 1.4rem; font-weight: 700; letter-spacing: .025em;
+  position: relative;
+  border-radius: 0;
+  padding: .7rem 1.3rem;
+  font-family: var(--font-pixel);
+  font-size: 14px;
+  letter-spacing: .04em;
   color: #1b1205;
-  border: 1px solid rgba(255, 232, 180, 0.3);
-  background: linear-gradient(135deg, #f8dda4, #d6a24e 56%, #ae7932);
-  box-shadow: 0 12px 30px -12px rgba(214,162,78,.72), inset 0 1px 0 rgba(255,255,255,.4);
-  transition: transform .16s, filter .16s, box-shadow .16s;
-  &:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 16px 34px -12px rgba(214,162,78,.82), inset 0 1px 0 rgba(255,255,255,.4); }
-  &:active { transform: translateY(0); }
-  &:disabled { opacity: .5; filter: grayscale(.4); transform: none; cursor: not-allowed; }
+  border: 2px solid #5a3f14;
+  background: linear-gradient(180deg, #f3d38a 0%, #e2b25a 50%, #c9953c 51%, #d9a94f 100%);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.35), inset 0 -2px 0 rgba(0,0,0,.18), 4px 4px 0 0 #000;
+  transition: transform .08s steps(2), box-shadow .08s steps(2), filter .12s;
+  &:hover { transform: translate(-1px, -1px); box-shadow: inset 0 2px 0 rgba(255,255,255,.4), inset 0 -2px 0 rgba(0,0,0,.18), 5px 5px 0 0 #000; filter: brightness(1.05); }
+  &:active { transform: translate(3px, 3px); box-shadow: inset 0 2px 0 rgba(255,255,255,.2), 1px 1px 0 0 #000; }
+  &:disabled { opacity: .5; filter: grayscale(.5); transform: none; cursor: not-allowed; box-shadow: 4px 4px 0 0 #000; }
 }
 
 @utility btn-ghost {
   display: inline-flex; align-items: center; gap: .4rem;
-  border-radius: .72rem; padding: .5rem .82rem; font-size: .8rem; font-weight: 600;
-  color: var(--color-ink-200); border: 1px solid rgba(255,255,255,.08);
-  background: rgba(255,255,255,.025);
-  transition: background .14s, border-color .14s, transform .14s, color .14s;
-  &:hover { color: var(--color-ink-100); background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.16); transform: translateY(-1px); }
-  &:active { transform: translateY(0); }
+  border-radius: 0;
+  padding: .5rem .8rem;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  letter-spacing: .03em;
+  color: var(--color-ink-200);
+  border: 2px solid var(--color-ink-600);
+  background: var(--color-ink-850);
+  box-shadow: 3px 3px 0 0 rgba(0,0,0,.55);
+  transition: transform .08s steps(2), box-shadow .08s steps(2), border-color .12s, color .12s;
+  &:hover { color: var(--color-gold-300); border-color: var(--color-gold-600); transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 rgba(0,0,0,.55); }
+  &:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 rgba(0,0,0,.55); }
+  &:disabled { opacity: .45; transform: none; box-shadow: 3px 3px 0 0 rgba(0,0,0,.55); }
 }
 
+@utility btn-seal {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  border-radius: 0;
+  padding: .6rem 1.1rem;
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  color: #fff3ee;
+  border: 2px solid #5a1a14;
+  background: linear-gradient(180deg, #ea6a5b 0%, #d9483b 52%, #b83a2f 53%, #c9463a 100%);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.25), 4px 4px 0 0 #000;
+  transition: transform .08s steps(2), box-shadow .08s steps(2);
+  &:hover { transform: translate(-1px,-1px); box-shadow: inset 0 2px 0 rgba(255,255,255,.3), 5px 5px 0 0 #000; }
+  &:active { transform: translate(3px,3px); box-shadow: 1px 1px 0 0 #000; }
+}
+
+/* 像素标签：方角、2px 边 */
 @utility chip {
   display: inline-flex; align-items: center; gap: .3rem;
-  border-radius: 999px; padding: .18rem .58rem; font-size: .7rem; line-height: 1.2rem;
-  border: 1px solid rgba(255,255,255,.085); background: rgba(255,255,255,.038);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+  border-radius: 0;
+  padding: .12rem .5rem;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 1.25rem;
+  letter-spacing: .02em;
+  border: 2px solid var(--color-ink-600);
+  background: var(--color-ink-900);
+}
+
+/* HP 条式的份额条底槛 */
+@utility hp-track {
+  border: 2px solid var(--color-ink-950);
+  background: var(--color-ink-700);
+  box-shadow: inset 0 0 0 1px rgba(255,236,200,.08), 2px 2px 0 rgba(0,0,0,.6);
+  background-image: repeating-linear-gradient(90deg, transparent 0 6px, rgba(0,0,0,.28) 6px 7px);
 }
 
 .setup-shell,
-.court-shell {
+.court-shell,
+.lobby-shell {
   position: relative;
   isolation: isolate;
 }
 
-.setup-shell::before,
-.court-shell::before {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
+/* 木墙护墙板：页面顶部一条 */
+.wainscot {
   background:
-    radial-gradient(520px 520px at 4% 30%, rgba(214, 162, 78, 0.055), transparent 68%),
-    radial-gradient(620px 620px at 97% 78%, rgba(94, 68, 156, 0.07), transparent 68%);
+    linear-gradient(180deg, var(--color-wood-500) 0 2px, var(--color-wood-700) 2px 6px, var(--color-wood-900) 6px 8px, transparent 8px);
 }
 
 @media (prefers-reduced-motion: reduce) {

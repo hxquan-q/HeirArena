@@ -1,3 +1,4 @@
+import { PixelStatCard } from '@pxlkit/ui-kit'
 import { ChevronDown, Scale } from 'lucide-react'
 import { useState } from 'react'
 import type { AgentSpec, LegalResult } from '../../types'
@@ -18,9 +19,9 @@ export default function LegalPanel({ legal, agents, articleShort }: Props) {
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="资产估值" value={`${fmt(legal.gross_total)} 万`} />
-        <Stat label="配偶析产" value={legal.community_deduction ? `-${fmt(legal.community_deduction)} 万` : '—'} hint="第1153条" />
-        <Stat label="遗产净额" value={`${fmt(legal.estate_total)} 万`} gold />
+        <PixelStatCard label="资产估值" value={`${fmt(legal.gross_total)} 万`} size="sm" tone="neutral" align="start" />
+        <PixelStatCard label="配偶析产" value={legal.community_deduction ? `-${fmt(legal.community_deduction)} 万` : '—'} size="sm" tone="neutral" align="start" trend="第1153条" />
+        <PixelStatCard label="遗产净额" value={`${fmt(legal.estate_total)} 万`} size="sm" tone="gold" valueTone align="start" />
       </div>
 
       <div className="flex items-center gap-2 text-xs text-ink-300">
@@ -103,15 +104,6 @@ export default function LegalPanel({ legal, agents, articleShort }: Props) {
           </ol>
         )}
       </div>
-    </div>
-  )
-}
-
-function Stat({ label, value, hint, gold }: { label: string; value: string; hint?: string; gold?: boolean }) {
-  return (
-    <div className="rounded-xl border border-white/6 bg-ink-800/60 px-3 py-2">
-      <div className="text-[10px] text-ink-400">{label}{hint && <span className="ml-1 text-ink-600">{hint}</span>}</div>
-      <div className={`font-mono text-sm font-bold ${gold ? 'text-gold-300' : 'text-ink-100'}`}>{value}</div>
     </div>
   )
 }
