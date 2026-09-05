@@ -432,6 +432,7 @@ export interface AwaitingInfo {
   phase: Phase
   round: number
   attacked_by: string | null
+  focus: string
   cards_pending: boolean
 }
 

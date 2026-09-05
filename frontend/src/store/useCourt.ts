@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { subscribe, type SseEventType } from '../api/client'
 import { sfx } from '../lib/sfx'
 import type {
-  AgentSpec, AgentStatus, CaseInput, DoneStats, LegalResult, Phase, Reaction, RelationEdge, Turn, TurnMeta, Verdict,
+  AgentSpec, AgentStatus, AwaitingInfo, CaseInput, Debrief, DoneStats, LegalResult, Phase, Reaction,
+  RelationEdge, SpeechCard, StrategyPack, Turn, TurnMeta, Verdict,
 } from '../types'
 
 export interface PhaseState {
@@ -47,6 +48,12 @@ interface CourtState {
   gavelAt: number | null
   done: DoneStats | null
   error: string | null
+  seat: { playerId: string; human: boolean } | null
+  strategy: StrategyPack | null
+  awaiting: AwaitingInfo | null
+  cards: SpeechCard[]
+  cardsPending: boolean
+  debrief: Debrief | null
   connect: (sessionId: string) => () => void
   reset: () => void
   setPaused: (paused: boolean) => void
@@ -57,6 +64,7 @@ const initial = {
   articleShort: {}, statuses: {}, phase: null, phaseHistory: [], focusIssues: [], paused: false, startedAt: null, turns: [],
   activeTurnId: null, relations: [], relationLog: [],
   reactions: {}, ghosts: [], notices: [], verdict: null, verdictAt: null, gavelAt: null, done: null, error: null,
+  seat: null, strategy: null, awaiting: null, cards: [], cardsPending: false, debrief: null,
 }
 
 const moodTimers: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -85,12 +93,22 @@ export const useCourt = create<CourtState>((set, get) => ({
       switch (type) {
         case 'session_start': {
           const agents = d.agents as AgentSpec[]
+          const caseData = d.case as CaseInput
+          const rawSeat = d.seat as { player_id?: string; seat_human?: boolean } | undefined
+          const cfg = caseData?.seat
+          const seat = rawSeat?.player_id
+            ? { playerId: String(rawSeat.player_id), human: Boolean(rawSeat.seat_human) }
+            : cfg
+              ? { playerId: cfg.player_id, human: cfg.seat_human }
+              : null
           set({
             connected: true, mode: String(d.mode), model: String(d.model), agents,
-            caseData: d.case as CaseInput, legal: d.legal as LegalResult,
+            caseData, legal: d.legal as LegalResult,
             articleShort: d.article_short as Record<string, string>,
             statuses: Object.fromEntries(agents.map((a) => [a.id, 'idle' as AgentStatus])),
             startedAt: Date.now(),
+            seat,
+            strategy: cfg?.strategy ?? null,
           })
           break
         }
@@ -116,9 +134,13 @@ export const useCourt = create<CourtState>((set, get) => ({
             turn_id: String(d.turn_id), agent_id: String(d.agent_id), phase: d.phase as Phase,
             round: Number(d.round), text: '', done: false, ts: Date.now(),
           }
-          set((s) => s.turns.some((t) => t.turn_id === turn.turn_id)
-            ? { activeTurnId: turn.turn_id }
-            : { turns: [...s.turns, turn], activeTurnId: turn.turn_id })
+          set((s) => {
+            const mine = s.awaiting && s.seat && d.agent_id === s.seat.playerId
+            const patch = s.turns.some((t) => t.turn_id === turn.turn_id)
+              ? { activeTurnId: turn.turn_id }
+              : { turns: [...s.turns, turn], activeTurnId: turn.turn_id }
+            return mine ? { ...patch, awaiting: null, cards: [], cardsPending: false } : patch
+          })
           break
         }
         case 'speech_delta': {
@@ -194,6 +216,43 @@ export const useCourt = create<CourtState>((set, get) => ({
         case 'done':
           set({ done: { stats: d.stats as Record<string, number>, drama_score: Number(d.drama_score) } })
           break
+        case 'seat': {
+          const human = Boolean(d.human)
+          set((s) => ({
+            seat: s.seat ? { ...s.seat, human } : s.seat,
+            awaiting: s.awaiting && !human ? null : s.awaiting,
+            cards: s.awaiting && !human ? [] : s.cards,
+            cardsPending: s.awaiting && !human ? false : s.cardsPending,
+          }))
+          break
+        }
+        case 'awaiting_player': {
+          const awaiting: AwaitingInfo = {
+            turn_key: String(d.turn_key ?? ''),
+            phase: d.phase as Phase,
+            round: Number(d.round ?? 0),
+            attacked_by: (d.attacked_by as string | null) ?? null,
+            focus: String(d.focus ?? ''),
+            cards_pending: Boolean(d.cards_pending),
+          }
+          set({ awaiting, cardsPending: Boolean(d.cards_pending) })
+          sfx('phase')
+          break
+        }
+        case 'cards':
+          set({ cards: (d.cards as SpeechCard[]) ?? [], cardsPending: false })
+          break
+        case 'debrief':
+          set({
+            debrief: {
+              scorecards: (d.scorecards ?? {}) as Debrief['scorecards'],
+              narrative: (d.narrative as string | null) ?? null,
+              next_time: (d.next_time as string[]) ?? [],
+              whatif_recap: (d.whatif_recap as Debrief['whatif_recap']) ?? [],
+              generated_by: String(d.generated_by ?? 'rules'),
+            },
+          })
+          break
         case 'error':
           set({ error: String(d.text) })
           break
@@ -207,3 +266,5 @@ export const useCourt = create<CourtState>((set, get) => ({
 }))
 
 export const selectAgent = (id: string) => (s: CourtState) => s.agents.find((a) => a.id === id)
+export const selectIsMyTurn = (s: CourtState) => Boolean(s.awaiting)
+export const selectMe = (s: CourtState) => s.agents.find((a) => a.id === s.seat?.playerId)
