@@ -1,5 +1,8 @@
 # HeirArena · 遗产竞技场
 
+[![CI](https://github.com/hxquan-q/HeirArena/actions/workflows/ci.yml/badge.svg)](https://github.com/hxquan-q/HeirArena/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > 把严肃的遗产分配，变成一场 AI 多 Agent 的「家庭剧 + 辩论竞技场」。
 > 你是立遗嘱的人：填好资产、家人和几句"剧情设定"，系统就会生成一群性格鲜明的 AI 继承人，
 > 让它们在虚拟听证庭上争吵、结盟、谈判——最后由中立的「遗嘱执行官」依据《民法典》继承编敲槌裁决。
@@ -8,16 +11,17 @@
 
 ## 它是怎么玩的
 
-1. **建立卷宗**：手动输入资产、家人关系和剧情设定，选择四个内置剧本，或者上传 / 粘贴 UTF-8 编码的 `.md / .markdown / .txt` 案情（可参考 `demo/sample-case.md`），由所选模型自动抽取人物、关系、资产、公开事实、角色性格与诉求，再回填设置页供用户确认。
+1. **建立卷宗**：从大厅进入「新案」或「导入案情」——手动输入资产、家人关系和剧情设定，选择内置剧本，或上传 / 粘贴 UTF-8 的 `.md / .markdown / .txt`（示例见 [`examples/sample-case.md`](examples/sample-case.md)），由所选模型抽取人物、关系、资产与诉求，再于设置页确认后开庭。
 2. **规则引擎先算法定份额**：依据《民法典》第 1122、1125、1127、1128、1129、1130、1131、1132、1144、1153、1156 条，确定性地算出每个人的参考份额与法条依据（夫妻共同财产先析产、代位继承、继子女扶养关系、丧偶儿媳视为第一顺序、多分 / 少分、被扶养人酌分……）。这是整场辩论不可逾越的"锚"。
-3. **开庭**：遗嘱执行官宣读案情 → 每位 Agent 开场陈述 → 若干轮辩论（攻击 / 结盟 / 提案 / 让步）→ 协商 → 落槌裁决。
+3. **开庭**：遗嘱执行官宣读案情 → 每位 Agent 开场陈述 → **执行官归纳 2~4 个争议焦点**（焦点驱动辩论，逐轮围绕推进；模型不可用时回退到内置焦点池）→ 若干轮辩论（攻击 / 结盟 / 提案 / 让步）→ 协商 → 落槌裁决。随时可以「休庭 / 续庭」：LangGraph 检查点在发言人粒度落盘，恢复后从中断处继续。
 4. **幽灵插话**：庭审进行中，你可以随时以"逝者的幽灵"身份插一句话，下一位发言的 Agent 会当场做出反应。
-5. **裁决**：执行官只能依据当庭成立的符号化法律事实，在用户选择的范围内酌情调整（默认 ±5 个百分点，也可选严格法定 0 或戏剧 15），再把不可分割的房、车、宠物、纪念物给最在乎它的人，用存款找平、不够就折价补偿（第 1156 条）。输出饼图、逐项资产归属、补偿关系、调整理由、来源发言与法条依据，并可导出 Markdown 庭审记录。
+5. **裁决**：执行官只能依据当庭成立的符号化法律事实，在用户选择的酌情范围内（设置页可选 0 严格 / 5 参考 / 10 / 15 戏剧）调整份额，再把不可分割的房、车、宠物、纪念物给最在乎它的人，用存款找平、不够就折价补偿（第 1156 条）。裁决输出升级为**三段式判决书**（经审理查明 → 本院认为[大前提法条 + 小前提事实] → 判决如下逐条主文）、**当庭成立事实清单**（每条可点击回查来源发言）、**各方论点漏接分析**（谁最有说服力、谁没接住对方的话）、以及**和解三档方案**（A 让步最大 / B 折中 / C 底线——遗产纠纷本就以调解结案为常态）；模型不可用时全部由规则引擎兜底生成。饼图、逐项资产归属、补偿关系、调整理由与法条依据照旧，可导出 Markdown 庭审记录。
 
 ## 视觉
 
-- 等距风格 SVG 法庭：木质墙板、天平徽章、夜窗与壁灯、法官席、证人台、红毯与家属席。
-- 程序化生成的 Agent 小人：法官袍与法槌、贪婪者的金币、孝顺者的相框、精算师的眼镜、律师的领带与文书、前任的墨镜、捣蛋鬼的小角；宠物是会摇尾巴的猫 / 狗；AI 分身是带天线的机器人。
+- **像素风大厅与 UI**（PxlKit + Fusion Pixel 字体）：路由切换带幕布转场； drama 计量、庭审记录与顶栏状态统一成「可玩的 Agent 游戏」界面。
+- **3D voxel 法庭**（React Three Fiber）：角色立绘与席位动画；2D 法庭场景仍保留关系连线、落槌与特效。
+- 角色立绘覆盖常见人设与变体（贪婪 / 孝顺 / 律师 / 宠物 / 前任 / 系统分身等），见 `assets/`。
 - 状态动画：思考气泡、发言声波、生气冒烟、开心闪光；发言者走上证人台、聚光灯亮起；攻击画红色虚线、结盟画绿色实线；落槌时全屏震动 + "咚！"。
 - 右侧面板：家族关系图（含 ✝ 先亡、代位、婚姻 / 已离婚、无继承权标注）、法定份额与法条全文、实时庭审记录、最终裁决。
 
@@ -113,18 +117,23 @@ backend/
       restore.py          # 从 SQLite 重建会话，供重启后续庭
   data/                   # providers.json、heirarena.db、checkpoints.db（已 gitignore）
   tests/                  # 规则引擎、分配器、编排器、持久化 / 续庭、流式解析、模型路由测试
+examples/
+  sample-case.md               # Markdown 案情导入示例
 frontend/
   src/
+    pages/LobbyPage.tsx        # 游戏大厅：新案 / 导入 / 供应商
+    pages/ImportPage.tsx       # Markdown 案情导入与解析回填
     pages/SetupPage.tsx        # 立遗嘱向导（法定份额实时预览、模型分配）
-    pages/CourtroomPage.tsx    # 法庭页：场景 + 阶段进度 + 面板 + 幽灵插话
-    components/ProviderManager.tsx  # 供应商管理弹窗
-    components/ModelSelect.tsx      # 模型选择器（跟随默认 / 剧本 / 各供应商模型）
-    components/scene/          # 法庭场景、Agent 小人、气泡、连线、落槌
+    pages/CourtroomPage.tsx    # 法庭页：3D 场景 + 阶段进度 + 面板 + 幽灵插话
+    components/scene3d/        # Voxel 法庭与角色图标
+    components/scene/          # 2D 法庭、连线、落槌、特效
     components/panels/         # 关系图 / 法定份额 / 庭审记录 / 裁决
+    components/ui/             # 像素风共用组件（顶栏、记录条等）
     store/useCourt.ts          # SSE 事件 → 状态
-    components/CaseImport.tsx  # Markdown 上传、解析模型选择、警告与回填
+    store/useCaseDraft.ts      # 导入草稿与设置页共享
     data/presets.ts            # 一键剧本与选项
-codex-bridge/                  # 可选：把本机 Codex（@openai/codex-sdk）包装成一个 OpenAI 兼容供应商
+docs/                          # 架构说明（中文）
+codex-bridge/                  # 可选：本机 Codex OpenAI 兼容桥（见下文）
 ```
 
 ## API 速览
@@ -145,7 +154,7 @@ codex-bridge/                  # 可选：把本机 Codex（@openai/codex-sdk）
 | POST | `/api/sessions/{id}/resume` | `Command(resume=…)` 从 Checkpointer 续庭 |
 | GET | `/api/sessions/{id}/export` | 导出 Markdown 庭审记录 |
 
-SSE 事件：`session_start` `phase` `agent_status` `speech_start` `speech_delta` `speech_end` `relation` `reaction` `ghost` `notice` `gavel` `verdict` `done`。
+SSE 事件：`session_start` `phase` `focus` `agent_status` `speech_start` `speech_delta` `speech_end` `relation` `reaction` `ghost` `notice` `gavel` `verdict` `done` `error`。
 
 ## 可选：用本机 Codex 账号当供应商
 
@@ -163,6 +172,12 @@ cd codex-bridge && npm install && npm start      # http://127.0.0.1:8787/v1
 cd backend && .venv/Scripts/python -m pytest -q     # 规则引擎 + 编排图 + 持久化续庭
 cd frontend && npm run build                          # 类型检查 + 打包
 ```
+
+## 开源与协作
+
+- 协议：[MIT](LICENSE)
+- 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)
+- 问题与功能建议：请使用 [GitHub Issues](https://github.com/hxquan-q/HeirArena/issues)
 
 ## 免责声明
 
