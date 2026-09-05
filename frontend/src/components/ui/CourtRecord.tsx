@@ -16,7 +16,7 @@ interface Props {
   valid: boolean
   submitting: boolean
   submitErr: string | null
-  onStart: () => void
+  onStart?: () => void
   /** 是否显示 3D 体素图腾（窄屏关掉） */
   sigil?: boolean
 }
@@ -95,9 +95,13 @@ export default function CourtRecord({ c, preview, previewErr, valid, submitting,
       <div className="relative flex items-center gap-3 border-t-2 border-dashed border-paper-400 px-3 pt-3 pb-3">
         <WaxSeal valid={valid} />
         <div className="min-w-0 flex-1">
-          <button className="btn-gold w-full justify-center" disabled={!valid || submitting} onClick={onStart}>
-            <Gavel size={15} /> {submitting ? '正在传唤…' : '开庭'} {!submitting && <ArrowRight size={14} />}
-          </button>
+          {onStart ? (
+            <button className="btn-gold w-full justify-center" disabled={!valid || submitting} onClick={onStart}>
+              <Gavel size={15} /> {submitting ? '正在传唤…' : '开庭'} {!submitting && <ArrowRight size={14} />}
+            </button>
+          ) : (
+            <p className="pixel-text text-[12px] text-paper-muted">翻到第 IV 卷「入局」再开庭</p>
+          )}
           <p className="mt-1.5 text-[11px] leading-snug text-paper-muted">
             {valid ? '卷宗齐备，火漆已封。' : `待补：${missing.join('、')}`}
           </p>

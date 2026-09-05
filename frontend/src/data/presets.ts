@@ -102,6 +102,7 @@ export const PRESETS: Preset[] = [
       speed: 1,
       default_model: null,
       executor_model: null,
+      seat: null,
     }),
   },
   {
@@ -132,6 +133,7 @@ export const PRESETS: Preset[] = [
       speed: 1,
       default_model: null,
       executor_model: null,
+      seat: null,
     }),
   },
   {
@@ -159,6 +161,7 @@ export const PRESETS: Preset[] = [
       speed: 1,
       default_model: null,
       executor_model: null,
+      seat: null,
     }),
   },
   {
@@ -187,6 +190,7 @@ export const PRESETS: Preset[] = [
       speed: 1,
       default_model: null,
       executor_model: null,
+      seat: null,
     }),
   },
 ]

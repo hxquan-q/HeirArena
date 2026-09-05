@@ -11,6 +11,7 @@ const caseData: CaseInput = {
   speed: 1,
   default_model: null,
   executor_model: null,
+  seat: null,
   assets: [
     { id: 'house', name: '学区房', type: 'house', value: 600, joint: true, sentimental: false, note: '' },
     { id: 'cat', name: '大橘', type: 'pet', value: 1, joint: false, sentimental: true, note: '' },
