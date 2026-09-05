@@ -69,6 +69,8 @@ _ENGINE: Engine | None = None
 
 def init_engine(database_url: str) -> Engine:
     global _ENGINE
+    if _ENGINE is not None:
+        _ENGINE.dispose()
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
     _ENGINE = create_engine(database_url, connect_args=connect_args)
     SQLModel.metadata.create_all(_ENGINE)
@@ -203,7 +205,9 @@ def load_case_row(session_id: str) -> CaseRecord | None:
 
 def list_resumable_case_ids() -> list[str]:
     with _session() as db:
-        rows = db.exec(select(CaseRecord).where(CaseRecord.status.in_(["running", "paused"]))).all()
+        rows = db.exec(
+            select(CaseRecord).where(CaseRecord.status.in_(["running", "paused", "awaiting_player"]))
+        ).all()
         return [r.id for r in rows]
 
 
