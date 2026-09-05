@@ -99,6 +99,10 @@ def test_full_mock_verdict_only_adjusts_members_with_facts(monkeypatch):
     asyncio.run(orch.run())
     v = orch.s.verdict
     assert v and v["discretion"] == 5.0 and v["disclaimer"]
+    # 判决书 / 和解 / 漏接分析在 mock 模式下也完整（规则兜底）
+    assert v["judgment"]["findings"] and v["judgment"]["reasoning"] and v["judgment"]["orders"]
+    assert len(v["settlement"]["plans"]) == 3
+    assert isinstance(v["unaddressed"], list)
     fact_members = {f["member_id"] for f in v["established_facts"]}
     for a in v["adjustments"]:
         assert a["member_id"] in fact_members

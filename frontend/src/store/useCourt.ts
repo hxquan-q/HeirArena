@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { subscribe, type SseEventType } from '../api/client'
+import { sfx } from '../lib/sfx'
 import type {
   AgentSpec, AgentStatus, CaseInput, DoneStats, LegalResult, Phase, Reaction, RelationEdge, Turn, TurnMeta, Verdict,
 } from '../types'
@@ -27,6 +28,8 @@ interface CourtState {
   statuses: Record<string, AgentStatus>
   phase: PhaseState | null
   phaseHistory: PhaseState[]
+  focusIssues: string[]
+  paused: boolean
   turns: Turn[]
   activeTurnId: string | null
   relations: RelationEdge[]
@@ -39,24 +42,39 @@ interface CourtState {
   error: string | null
   connect: (sessionId: string) => () => void
   reset: () => void
+  setPaused: (paused: boolean) => void
 }
 
 const initial = {
   sessionId: null, connected: false, mode: 'mock', model: 'scripted', agents: [], caseData: null, legal: null,
-  articleShort: {}, statuses: {}, phase: null, phaseHistory: [], turns: [], activeTurnId: null, relations: [],
+  articleShort: {}, statuses: {}, phase: null, phaseHistory: [], focusIssues: [], paused: false, turns: [],
+  activeTurnId: null, relations: [],
   reactions: {}, ghosts: [], notices: [], verdict: null, gavelAt: null, done: null, error: null,
 }
 
 const moodTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+
+/* 打字机音效节流：流式 delta 可能每帧都到，110ms 一响足够连成"哒哒哒" */
+let lastBlip = 0
+const blip = () => {
+  const now = Date.now()
+  if (now - lastBlip < 110) return
+  lastBlip = now
+  sfx('blip')
+}
 
 export const useCourt = create<CourtState>((set, get) => ({
   ...initial,
 
   reset: () => set({ ...initial }),
 
+  setPaused: (paused: boolean) => set({ paused }),
+
   connect: (sessionId) => {
     set({ ...initial, sessionId })
     const handle = (type: SseEventType, d: Record<string, unknown>) => {
+      // 手动重连会从下一条事件续播，不会再次收到最初的 session_start。
+      if (type !== 'session_start' && !get().connected) set({ connected: true })
       switch (type) {
         case 'session_start': {
           const agents = d.agents as AgentSpec[]
@@ -71,6 +89,12 @@ export const useCourt = create<CourtState>((set, get) => ({
         case 'phase': {
           const p = { phase: d.phase as Phase, round: Number(d.round), label: String(d.label) }
           set((s) => ({ phase: p, phaseHistory: [...s.phaseHistory, p] }))
+          sfx('phase')
+          break
+        }
+        case 'focus': {
+          // 争议焦点列表：执行官从开场陈述归纳，辩论轮依次围绕推进
+          set({ focusIssues: (d.issues as string[]) ?? [] })
           break
         }
         case 'agent_status': {
@@ -92,6 +116,7 @@ export const useCourt = create<CourtState>((set, get) => ({
         case 'speech_delta': {
           const id = String(d.turn_id)
           const text = String(d.text)
+          blip()
           set((s) => {
             const idx = s.turns.findIndex((t) => t.turn_id === id)
             if (idx < 0) return {}
@@ -119,6 +144,7 @@ export const useCourt = create<CourtState>((set, get) => ({
           }
           set((s) => ({ relations: [...s.relations.slice(-5), edge] }))
           setTimeout(() => set((s) => ({ relations: s.relations.filter((r) => r.id !== edge.id) })), 9000)
+          sfx(edge.kind === 'attack' ? 'attack' : 'ally')
           break
         }
         case 'reaction': {
@@ -144,15 +170,18 @@ export const useCourt = create<CourtState>((set, get) => ({
         }
         case 'ghost':
           set((s) => ({ ghosts: [...s.ghosts, { text: String(d.text), ts: Date.now() }] }))
+          sfx('ghost')
           break
         case 'notice':
           set((s) => ({ notices: [...s.notices.slice(-4), { text: String(d.text), ts: Date.now() }] }))
           break
         case 'gavel':
           set({ gavelAt: Date.now() })
+          sfx('gavel')
           break
         case 'verdict':
           set({ verdict: d as unknown as Verdict })
+          sfx('verdict')
           break
         case 'done':
           set({ done: { stats: d.stats as Record<string, number>, drama_score: Number(d.drama_score) } })

@@ -46,7 +46,7 @@ async def _setup_runtime() -> None:
             ORCHESTRATORS[session.id] = orch
             register_orchestrator(orch)
             if session.status == "running" and not session.paused:
-                session.task = asyncio.create_task(orch.run(resume=True))
+                session.task = _spawn(orch, resume=True)
         except Exception as e:  # noqa: BLE001
             print(f"[heirarena] 续庭失败 {session_id}: {e!r}")
 
@@ -222,11 +222,18 @@ async def create_session(case: CaseInput) -> dict:
     if persist_enabled():
         save_role_bindings(session.id, role_bindings_from_orch(orchestrator))
         session.persist_snapshot(orchestrator._extras())
-    session.task = asyncio.create_task(orchestrator.run())
+    session.task = _spawn(orchestrator)
     return {
         "session_id": session.id, "mode": "llm" if orchestrator.any_llm else "mock", "model": orchestrator.model_summary,
         "agents": [a.model_dump() for a in session.specs], "legal": legal.model_dump(),
     }
+
+
+def _spawn(orch: Orchestrator, resume: bool = False) -> asyncio.Task:
+    """启动庭审任务；终局后释放 ORCHESTRATORS 引用（Session 保留供快照，需要时可重建）。"""
+    task = asyncio.create_task(orch.run(resume=resume))
+    task.add_done_callback(lambda _t, sid=orch.s.id: ORCHESTRATORS.pop(sid, None))
+    return task
 
 
 def _get(session_id: str) -> Session:
@@ -336,7 +343,7 @@ async def resume_session(session_id: str) -> dict:
         register_orchestrator(orch)
     s.persist_snapshot(orch._extras())
     if s.task is None or s.task.done():
-        s.task = asyncio.create_task(orch.run(resume=True))
+        s.task = _spawn(orch, resume=True)
     return {"ok": True, "status": "running"}
 
 

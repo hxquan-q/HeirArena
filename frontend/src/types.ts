@@ -166,8 +166,37 @@ export interface Compensation {
   amount: number
 }
 
+/** 三段式判决书：经审理查明 / 本院认为（三段论）/ 判决如下（编号主文） */
+export interface Judgment {
+  findings: string
+  reasoning: string
+  orders: string[]
+}
+
+/** 和解建议：总览 + A/B/C 三档让步方案 */
+export interface SettlementPlan {
+  tier: string
+  title: string
+  detail: string
+}
+
+export interface Settlement {
+  overview: string
+  plans: SettlementPlan[]
+}
+
+/** 漏接分析：每人最有说服力的论点 + 未回应的对方论点 */
+export interface Unaddressed {
+  member_id: string
+  strongest: string
+  missed: string
+}
+
 export interface Verdict {
   speech: string
+  judgment?: Judgment
+  settlement?: Settlement
+  unaddressed?: Unaddressed[]
   allocation: Record<string, Record<string, number>>
   compensations: Compensation[]
   targets: Record<string, number>

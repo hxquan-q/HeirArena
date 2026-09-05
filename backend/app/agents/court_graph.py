@@ -14,7 +14,6 @@ class CourtState(TypedDict, total=False):
     phase: str
     debate_round: int
     speaker_index: int
-    awaiting_intro: bool
     focus: str
     finished: bool
 
@@ -83,11 +82,16 @@ def initial_state(session_id: str) -> CourtState:
         "phase": "opening",
         "debate_round": 0,
         "speaker_index": 0,
-        "awaiting_intro": True,
         "focus": "",
         "finished": False,
     }
 
 
-def graph_config(session_id: str) -> dict:
-    return {"configurable": {"thread_id": session_id}, "recursion_limit": 80}
+def graph_config(session_id: str, debater_count: int, debate_rounds: int) -> dict:
+    # opening + statements + debates + negotiation + verdict, with two spare
+    # supersteps for LangGraph's terminal transition/checkpoint bookkeeping.
+    required_steps = 2 * debater_count + 5 + debate_rounds * (debater_count + 2)
+    return {
+        "configurable": {"thread_id": session_id},
+        "recursion_limit": required_steps + 2,
+    }

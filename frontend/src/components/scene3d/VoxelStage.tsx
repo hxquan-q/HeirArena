@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber'
-import { Float } from '@react-three/drei'
+import { ContactShadows, Float } from '@react-three/drei'
 import { Suspense } from 'react'
 import type { PxlKitData } from '@pxlkit/core'
 import VoxelIcon from './VoxelIcon'
@@ -35,14 +35,19 @@ export default function VoxelStage({ icon, size = 220, spin = 0.5, glow = 'rgba(
         camera={{ position: [0, 0.3, 5.2], fov: 38 }}
         style={{ width: size, height: size }}
       >
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[3, 4, 5]} intensity={1.5} />
-        <directionalLight position={[-4, 2, -3]} intensity={0.4} color="#e9be6f" />
-        <pointLight position={[0, -3, 2]} intensity={0.35} color="#a78bfa" />
+        <ambientLight intensity={0.45} />
+        {/* 主光：右上暖白，塑造体素受光面 */}
+        <directionalLight position={[3, 4, 5]} intensity={1.6} />
+        {/* 补光：左后暗金，勾出金属侧缘 */}
+        <directionalLight position={[-4, 2, -3]} intensity={0.5} color="#e9be6f" />
+        {/* 轮廓光：正后方冷紫，把体素从暗背景里剥离出来 */}
+        <spotLight position={[0, 1.5, -6]} angle={0.7} penumbra={1} intensity={0.9} color="#b39bff" />
+        <pointLight position={[0, -3, 2]} intensity={0.3} color="#a78bfa" />
         <Suspense fallback={null}>
           <Float speed={1.6} rotationIntensity={0} floatIntensity={0.35} floatingRange={[-0.08, 0.08]}>
-            <VoxelIcon icon={icon} spin={spin} bob={bob} size={3.4} />
+            <VoxelIcon icon={icon} spin={spin} bob={bob} size={2.6} />
           </Float>
+          <ContactShadows position={[0, -1.55, 0]} scale={7} blur={2.6} far={4} opacity={0.4} color="#000000" />
         </Suspense>
       </Canvas>
     </div>

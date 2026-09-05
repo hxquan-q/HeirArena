@@ -8,12 +8,12 @@ export function RoomBackground({ decedentName }: { decedentName?: string }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
       <defs>
         <linearGradient id="moonbeam" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="rgba(214,226,255,0.14)" />
-          <stop offset="1" stopColor="rgba(214,226,255,0)" />
+          <stop offset="0" stopColor="rgba(255,220,150,0.18)" />
+          <stop offset="1" stopColor="rgba(255,220,150,0)" />
         </linearGradient>
         <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1b2030" />
-          <stop offset="1" stopColor="#12161f" />
+          <stop offset="0" stopColor="#3c2c1b" />
+          <stop offset="1" stopColor="#25190e" />
         </linearGradient>
         <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#2b2117" />
@@ -37,8 +37,9 @@ export function RoomBackground({ decedentName }: { decedentName?: string }) {
           <stop offset="1" stopColor="rgba(255,214,140,0)" />
         </radialGradient>
         <linearGradient id="window" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#25345a" />
-          <stop offset="1" stopColor="#0f1626" />
+          <stop offset="0" stopColor="#3f6fb5" />
+          <stop offset="0.55" stopColor="#7a86a8" />
+          <stop offset="1" stopColor="#efac63" />
         </linearGradient>
         <radialGradient id="spot" cx="50%" cy="50%" r="50%">
           <stop offset="0" stopColor="rgba(241,210,143,0.28)" />
