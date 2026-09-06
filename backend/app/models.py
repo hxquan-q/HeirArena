@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 AssetType = Literal[
     "house", "car", "cash", "crypto", "nft", "pet", "collectible", "stock", "equity", "other"
@@ -103,6 +103,211 @@ class Member(BaseModel):
         return RELATION_LABEL.get(self.relation, self.relation)
 
 
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+RedLineKind = Literal["no_sell_asset", "no_member_gets_asset", "not_below_legal", "no_co_own_asset", "custom"]
+SoftGoalKind = Literal["keep_relation", "pet_custody", "keep_residence", "recognition", "custom"]
+ThreatLevel = Literal["high", "medium", "low", "none"]
+Confidence = Literal["high", "medium", "low", "abstain"]
+ScorePartKey = Literal["target_assets", "min_share", "red_lines", "soft_goals"]
+
+
+class RedLine(_Strict):
+    kind: RedLineKind
+    asset_id: str | None = None
+    member_id: str | None = None
+    text: str = Field(default="", max_length=200)
+
+    @model_validator(mode="after")
+    def _custom_text(self) -> RedLine:
+        if self.kind == "custom":
+            if not self.text.strip():
+                raise ValueError("自定义红线必须填写说明")
+        elif self.text:
+            raise ValueError("非自定义红线不得填写自由文本")
+        return self
+
+
+class SoftGoal(_Strict):
+    kind: SoftGoalKind
+    member_id: str | None = None
+    asset_id: str | None = None
+    text: str = Field(default="", max_length=200)
+
+    @model_validator(mode="after")
+    def _custom_text(self) -> SoftGoal:
+        if self.kind == "custom":
+            if not self.text.strip():
+                raise ValueError("自定义软目标必须填写说明")
+        elif self.text:
+            raise ValueError("非自定义软目标不得填写自由文本")
+        return self
+
+
+class Goals(_Strict):
+    target_assets: list[str] = Field(default_factory=list, max_length=5)
+    min_value_share: float | None = Field(default=None, ge=0, le=100)
+    red_lines: list[RedLine] = Field(default_factory=list, max_length=6)
+    soft_goals: list[SoftGoal] = Field(default_factory=list, max_length=6)
+    narrative: str = Field(default="", max_length=600)
+    source: Literal["user", "inferred"] = "inferred"
+
+
+class BriefItem(_Strict):
+    id: str
+    text: str = Field(max_length=160)
+    enabled: bool = True
+    custom: bool = False
+    depends_on: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    article: str | None = None
+    delta_pct: float | None = None
+    confidence: Confidence | None = None
+
+
+class Brief(_Strict):
+    member_id: str
+    baseline: list[BriefItem] = Field(default_factory=list)
+    reachable: list[BriefItem] = Field(default_factory=list)
+    levers: list[BriefItem] = Field(default_factory=list)
+    asset_strategy: list[BriefItem] = Field(default_factory=list)
+    playbook: list[BriefItem] = Field(default_factory=list)
+    opponents: list[BriefItem] = Field(default_factory=list)
+    risks: list[BriefItem] = Field(default_factory=list)
+    generated_by: str = "rules"
+
+
+class WhatIfDelta(_Strict):
+    key: str
+    subject_id: str
+    label: str
+    article: str
+    delta_pct: float
+    direction: Literal["favorable", "adverse"]
+    evidence: list[str] = Field(default_factory=list)
+
+
+class Reachability(_Strict):
+    legal_pct: float
+    low: float
+    high: float
+    value_low: float | None = None
+    value_high: float | None = None
+    favorable_keys: list[str] = Field(default_factory=list)
+    adverse_keys: list[str] = Field(default_factory=list)
+
+
+class CoalitionRow(_Strict):
+    member_id: str
+    potential_confirmers: list[str] = Field(default_factory=list)
+    gain_pct: float = 2.0
+    exposure_from: list[str] = Field(default_factory=list)
+
+
+class AssetCompetitionRow(_Strict):
+    asset_id: str
+    competitors: list[str] = Field(default_factory=list)
+    can_absorb: dict[str, bool] = Field(default_factory=dict)
+    pref_score: dict[str, float] = Field(default_factory=dict)
+    predicted_winner: str | None = None
+    compensation_needed: float = 0.0
+
+
+class PayoffRow(_Strict):
+    option: str
+    label: str
+    my_value: float
+    my_value_share: float
+    assets_obtained: list[str] = Field(default_factory=list)
+    compensation_paid: float = 0.0
+    compensation_received: float = 0.0
+
+
+class EquilibriumRow(_Strict):
+    profile: dict[str, str]
+    payoffs: dict[str, float]
+    my_value: float
+    my_value_share: float
+    stable: bool
+    note: str = ""
+
+
+class GameTables(_Strict):
+    coalition: list[CoalitionRow] = Field(default_factory=list)
+    asset_competition: list[AssetCompetitionRow] = Field(default_factory=list)
+    payoff: list[PayoffRow] = Field(default_factory=list)
+    equilibrium: list[EquilibriumRow] = Field(default_factory=list)
+
+
+class ScorecardPart(_Strict):
+    key: ScorePartKey
+    label: str
+    score: float
+    max: float
+    applicable: bool = True
+    detail: str = ""
+    turn_ids: list[str] = Field(default_factory=list)
+
+
+class Scorecard(_Strict):
+    member_id: str
+    parts: list[ScorecardPart]
+    total: float
+    capped: bool = False
+    formula: str
+    value_share: float
+    nominal_pct: float
+    legal_pct: float
+
+
+class MatrixRow(_Strict):
+    member_id: str
+    baseline_pct: float
+    reachable: Reachability | None = None
+    target_assets: list[str] = Field(default_factory=list)
+    conflicts_with_player: list[str] = Field(default_factory=list)
+    potential_allies: list[str] = Field(default_factory=list)
+    strategy_summary: str = Field(default="", max_length=80)
+    threat_level: ThreatLevel = "none"
+    no_legal_share_reason: str | None = None
+    achieved: Scorecard | None = None
+
+
+class StrategyPack(_Strict):
+    player_id: str
+    matrix: list[MatrixRow]
+    briefs: dict[str, Brief]
+    game: GameTables
+    reachability: Reachability
+    whatif: list[WhatIfDelta]
+    evidence_checklist: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    generated_by: str = "rules"
+    generated_at: float = 0
+
+
+class SeatConfig(_Strict):
+    player_id: str
+    goals: dict[str, Goals] = Field(default_factory=dict)
+    seat_human: bool = False
+    advisor_model: ModelRef | None = None
+    strategy: StrategyPack | None = None
+
+
+class SeatAnalysis(_Strict):
+    player_id: str
+    legal: dict[str, Any]
+    reachability: Reachability
+    whatif: list[WhatIfDelta]
+    evidence_checklist: list[dict[str, Any]] = Field(default_factory=list)
+    inferred_goals: dict[str, Goals] = Field(default_factory=dict)
+    game: GameTables
+    matrix: list[MatrixRow] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class CaseInput(BaseModel):
     decedent_name: str = "老王"
     story: str = Field(default="", description="剧情设定：儿子不孝、女儿很爱我、最爱那只猫……")
@@ -116,6 +321,34 @@ class CaseInput(BaseModel):
     )
     default_model: Optional[ModelRef] = Field(default=None, description="所有角色的默认模型；None 表示使用 .env 默认或剧本模式")
     executor_model: Optional[ModelRef] = Field(default=None, description="遗嘱执行官使用的模型；None 表示跟随默认")
+    seat: SeatConfig | None = Field(default=None, description="入局推演席位；旁观模式为 None")
+
+    @model_validator(mode="after")
+    def _validate_seat(self) -> CaseInput:
+        seat = self.seat
+        if seat is None:
+            return self
+        members = {m.id: m for m in self.members}
+        assets = {a.id: a for a in self.assets}
+        player = members.get(seat.player_id)
+        if player is None:
+            raise ValueError("席位玩家不存在")
+        if player.relation in {"pet", "ai_twin"}:
+            raise ValueError("宠物与 AI 分身不能入局")
+        if player.deceased:
+            raise ValueError("已故成员不能入局")
+        for member_id, goals in seat.goals.items():
+            if member_id not in members:
+                raise ValueError(f"诉求成员「{member_id}」不存在")
+            for asset_id in goals.target_assets:
+                if asset_id not in assets:
+                    raise ValueError(f"目标资产「{asset_id}」不存在")
+            for item in (*goals.red_lines, *goals.soft_goals):
+                if item.asset_id and item.asset_id not in assets:
+                    raise ValueError(f"引用了不存在的资产「{item.asset_id}」")
+                if item.member_id and item.member_id not in members:
+                    raise ValueError(f"引用了不存在的成员「{item.member_id}」")
+        return self
 
 
 class HeirShare(BaseModel):
@@ -141,3 +374,39 @@ class LegalResult(BaseModel):
     estate_total: float
     spouse_id: Optional[str] = None
     dependents_carveout: float = 0.0
+
+
+__all__ = [
+    "ASSET_EMOJI",
+    "Asset",
+    "AssetCompetitionRow",
+    "AssetType",
+    "Brief",
+    "BriefItem",
+    "CaseInput",
+    "CoalitionRow",
+    "DIVISIBLE_TYPES",
+    "EquilibriumRow",
+    "GameTables",
+    "Goals",
+    "HeirShare",
+    "LegalResult",
+    "MatrixRow",
+    "Member",
+    "ModelRef",
+    "PayoffRow",
+    "Personality",
+    "RELATION_LABEL",
+    "Reachability",
+    "RedLine",
+    "RedLineKind",
+    "Relation",
+    "Scorecard",
+    "ScorecardPart",
+    "SeatAnalysis",
+    "SeatConfig",
+    "SoftGoal",
+    "SoftGoalKind",
+    "StrategyPack",
+    "WhatIfDelta",
+]

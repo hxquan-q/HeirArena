@@ -42,6 +42,18 @@ def test_attacks_and_alliances_do_not_move_shares():
     assert any("王大宝" in q and "未当庭承认" in q for q in open_qs)
 
 
+def test_concede_action_is_not_an_independent_share_fact():
+    orch = _orch()
+    orch.s.transcript.append(
+        _turn(orch, "son", "negotiation", {"action": "concede", "admissions": []}, "t-concede")
+    )
+    proposed, adjustments, facts, _ = orch._fact_based_plan()
+    legal = {sh.member_id: sh.percent for sh in orch.legal.shares if sh.percent > 0}
+    assert proposed == legal
+    assert adjustments == []
+    assert facts == []
+
+
 def test_self_admission_and_multi_party_confirmation_move_shares():
     orch = _orch()
     orch.s.transcript += [

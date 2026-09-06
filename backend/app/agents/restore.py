@@ -7,7 +7,7 @@ from ..config import Settings
 from ..models import CaseInput, LegalResult
 from ..persist import load_case_row, load_events, load_speeches, load_verdict
 from ..providers import ProviderStore
-from .orchestrator import Orchestrator, Session, Turn
+from .orchestrator import Orchestrator, SeatRuntime, Session, Turn
 from .personas import AgentSpec
 
 
@@ -28,6 +28,17 @@ def rebuild_session(session_id: str, settings: Settings, providers: ProviderStor
     session.relations = extras.get("relations") or []
     session.paused = bool(extras.get("paused"))
     session.verdict = load_verdict(session_id)
+    seat_data = extras.get("seat")
+    if isinstance(seat_data, dict):
+        session.seat = SeatRuntime(
+            human=bool(seat_data.get("human")),
+            awaiting=seat_data.get("awaiting"),
+            cards=seat_data.get("cards") or {},
+            pending=seat_data.get("pending"),
+            debrief=seat_data.get("debrief"),
+        )
+    elif case.seat is not None:
+        session.seat = SeatRuntime(human=case.seat.seat_human)
     for sp in load_speeches(session_id):
         session.transcript.append(Turn(
             turn_id=sp["turn_id"], agent_id=sp["agent_id"], name=sp["name"],

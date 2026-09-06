@@ -1,4 +1,6 @@
-import type { AgentSpec, CaseInput, LegalResult, ModelRef, Provider, ProviderPreset } from '../types'
+import type {
+  AgentSpec, CaseInput, LegalResult, ModelRef, PlayerSpeech, Provider, ProviderPreset, SeatAnalysis, StrategyPack,
+} from '../types'
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -77,11 +79,24 @@ export const api = {
   resume: (sessionId: string) =>
     fetch(`/api/sessions/${sessionId}/resume`, { method: 'POST' }).then((r) => json<{ ok: boolean; status: string }>(r)),
   exportUrl: (sessionId: string) => `/api/sessions/${sessionId}/export`,
+  seatAnalyze: (c: CaseInput, signal?: AbortSignal) =>
+    fetch('/api/seat/analyze', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c), signal,
+    }).then((r) => json<SeatAnalysis>(r)),
+  seatStrategy: (c: CaseInput) =>
+    fetch('/api/seat/strategy', jsonInit('POST', c)).then((r) => json<StrategyPack>(r)),
+  setSeat: (id: string, human: boolean) =>
+    fetch(`/api/sessions/${id}/seat`, jsonInit('PUT', { human })).then((r) => json<{ ok: boolean }>(r)),
+  speak: (id: string, body: PlayerSpeech | { delegate: true }) =>
+    fetch(`/api/sessions/${id}/speak`, jsonInit('POST', body)).then((r) => json<{ ok: boolean }>(r)),
+  regenerateCards: (id: string) =>
+    fetch(`/api/sessions/${id}/cards`, { method: 'POST' }).then((r) => json<{ ok: boolean }>(r)),
 }
 
 export const SSE_EVENTS = [
   'session_start', 'phase', 'focus', 'agent_status', 'speech_start', 'speech_delta', 'speech_end',
   'relation', 'reaction', 'ghost', 'notice', 'gavel', 'verdict', 'done', 'error',
+  'seat', 'awaiting_player', 'cards', 'debrief',
 ] as const
 
 export type SseEventType = (typeof SSE_EVENTS)[number]

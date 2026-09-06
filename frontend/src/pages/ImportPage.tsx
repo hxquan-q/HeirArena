@@ -3,22 +3,21 @@ import { CheckCircle, Sparkles, WarningTriangle } from '@pxlkit/feedback'
 import { Scroll, SpellBook } from '@pxlkit/gamification'
 import { UserGroup } from '@pxlkit/social'
 import { Package, Robot, Upload } from '@pxlkit/ui'
-import { PixelAlert, PixelProgress, PixelSegmented, PixelStepper, PixelTypewriter } from '@pxlkit/ui-kit'
+import { PixelAlert, PixelChip, PixelChipGroup, PixelProgress, PixelSegmented, PixelStepper, PixelTypewriter } from '@pxlkit/ui-kit'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowLeft, ArrowRight, BookOpen, ClipboardPaste, FileText, RotateCcw, Wand2 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { ArrowLeft, ArrowRight, BookOpen, ClipboardPaste, FileText, RotateCcw, Target, Wand2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, type CaseParseResult, type ServerConfig } from '../api/client'
 import ModelSelect from '../components/ModelSelect'
 import ProviderManager from '../components/ProviderManager'
+import SafeVoxelStage from '../components/scene3d/SafeVoxelStage'
 import { ShareBar } from '../components/ui/CourtRecord'
 import TopBar from '../components/ui/TopBar'
 import { ASSET_EMOJI, PERSONALITY_MAP, RELATION_LABEL } from '../data/presets'
 import { describeRef, useProviders } from '../hooks/useProviders'
-import { useCaseDraft } from '../store/useCaseDraft'
+import { isSeatable, useCaseDraft } from '../store/useCaseDraft'
 import type { Member, ModelRef } from '../types'
-
-const VoxelStage = lazy(() => import('../components/scene3d/VoxelStage'))
 
 const MAX_FILE_BYTES = 300 * 1024
 const MAX_CONTENT_CHARS = 100_000
@@ -74,6 +73,8 @@ export default function ImportPage() {
   const { providers, presets, refresh } = useProviders()
   const draft = useCaseDraft((s) => s.c)
   const applyParsed = useCaseDraft((s) => s.applyParsed)
+  const enterSeat = useCaseDraft((s) => s.enterSeat)
+  const [seatPick, setSeatPick] = useState<string | null>(null)
 
   const [mode, setMode] = useState<ImportMode>('file')
   const [dragging, setDragging] = useState(false)
@@ -108,7 +109,7 @@ export default function ImportPage() {
 
   const stepIndex = result ? 2 : activeSource ? 1 : 0
 
-  const resetResult = () => { setResult(null); setError(null) }
+  const resetResult = () => { setResult(null); setError(null); setSeatPick(null) }
 
   const loadFile = async (candidate?: File) => {
     resetResult()
@@ -139,6 +140,7 @@ export default function ImportPage() {
     setError(null)
     setResult(null)
     try {
+      setSeatPick(null)
       setResult(await api.parseCase(activeSource.content, activeSource.name, effectiveModel))
     } catch (caught) {
       setError((caught as Error).message)
@@ -151,6 +153,13 @@ export default function ImportPage() {
     if (!result) return
     applyParsed(result)
     nav('/setup')
+  }
+
+  const commitSeat = () => {
+    if (!result || !seatPick) return
+    applyParsed(result)
+    enterSeat(seatPick)
+    nav('/setup?chapter=seat')
   }
 
   return (
@@ -174,9 +183,14 @@ export default function ImportPage() {
             className="panel-elevated relative mx-auto flex h-[168px] w-[168px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_55%,rgba(165,139,255,.2),transparent_62%)]">
             <div className="scanlines pointer-events-none absolute inset-0 z-10 opacity-60" />
             <div className="pixel-text absolute top-2 left-2.5 text-[12px] tracking-[0.12em] text-ghost-300">CODEX</div>
-            <Suspense fallback={<div className="pixel-text animate-blink-step text-[12px] text-ghost-300">LOADING…</div>}>
-              <VoxelStage icon={SpellBook} size={128} spin={0.5} bob={0.06} glow="rgba(165,139,255,.32)" />
-            </Suspense>
+            <SafeVoxelStage
+              icon={SpellBook}
+              size={128}
+              spin={0.5}
+              bob={0.06}
+              glow="rgba(165,139,255,.32)"
+              fallbackLabel="案情法典图腾"
+            />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.05 }} className="min-w-0">
@@ -335,21 +349,40 @@ export default function ImportPage() {
                       <div className="pixel-text mb-2 flex items-center gap-1.5 text-[12px] text-ink-300">
                         <PxlKitIcon icon={UserGroup} size={12} /> 出场角色 · {result.case.members.length}
                       </div>
-                      <ul className="space-y-1.5">
-                        {result.case.members.map((m) => {
-                          const p = PERSONALITY_MAP[m.personality]
-                          const flags = (Object.keys(FLAG_LABEL) as (keyof Member)[]).filter((k) => Boolean(m[k]))
-                          return (
-                            <li key={m.id} className="panel-inset flex flex-wrap items-center gap-1.5 px-2.5 py-2 text-xs" style={{ borderLeft: `4px solid ${p?.color ?? '#a08d78'}` }}>
-                              <span className="font-bold text-ink-100">{m.name}</span>
-                              <span className="text-ink-400">{RELATION_LABEL[m.relation] ?? m.relation}</span>
-                              {p && <span className="chip border-ink-950 text-ink-950" style={{ background: p.color }}>{p.emoji} {p.label}</span>}
-                              {flags.map((k) => <span key={k} className="chip text-ink-300">{FLAG_LABEL[k]}</span>)}
-                              {m.wish && <span className="ml-auto truncate text-[11px] text-ink-400" title={m.wish}>想要：{m.wish}</span>}
-                            </li>
-                          )
-                        })}
-                      </ul>
+                      <p className="mb-2 text-[11px] leading-relaxed text-ink-400">
+                        想从某个人的视角推演？选一位，再点右侧「以此视角入局」
+                      </p>
+                      <PixelChipGroup
+                        multiple={false}
+                        value={seatPick ? [seatPick] : []}
+                        onChange={(ids) => setSeatPick(ids[0] ?? null)}
+                        aria-label="选择入局视角"
+                      >
+                        <ul className="space-y-1.5">
+                          {result.case.members.map((m) => {
+                            const p = PERSONALITY_MAP[m.personality]
+                            const flags = (Object.keys(FLAG_LABEL) as (keyof Member)[]).filter((k) => Boolean(m[k]))
+                            const mine = seatPick === m.id
+                            const canSit = isSeatable(m)
+                            return (
+                              <li
+                                key={m.id}
+                                className={`panel-inset flex flex-wrap items-center gap-1.5 px-2.5 py-2 text-xs ${mine ? 'border-gold-400 bg-gold-600/10' : ''}`}
+                                style={{ borderLeft: `4px solid ${p?.color ?? '#a08d78'}` }}
+                              >
+                                <span className="font-bold text-ink-100">{m.name}</span>
+                                <span className="text-ink-400">{RELATION_LABEL[m.relation] ?? m.relation}</span>
+                                {p && <span className="chip border-ink-950 text-ink-950" style={{ background: p.color }}>{p.emoji} {p.label}</span>}
+                                {flags.map((k) => <span key={k} className="chip text-ink-300">{FLAG_LABEL[k]}</span>)}
+                                {canSit && (
+                                  <PixelChip label="这是我" value={m.id} tone={mine ? 'gold' : 'neutral'} size="sm" />
+                                )}
+                                {m.wish && <span className="ml-auto truncate text-[11px] text-ink-400" title={m.wish}>想要：{m.wish}</span>}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </PixelChipGroup>
                     </div>
                     <div>
                       <div className="pixel-text mb-2 flex items-center gap-1.5 text-[12px] text-ink-300">
@@ -432,6 +465,9 @@ export default function ImportPage() {
                     )}
                     <button className="btn-gold mt-3 w-full justify-center" onClick={commit}>
                       <BookOpen size={15} /> 回填卷宗，去核对 <ArrowRight size={14} />
+                    </button>
+                    <button className="btn-gold mt-2 w-full justify-center" disabled={!seatPick} onClick={commitSeat}>
+                      <Target size={15} /> 以此视角入局 <ArrowRight size={14} />
                     </button>
                     <button className="btn-ghost mt-2 w-full justify-center" onClick={resetResult}>
                       <RotateCcw size={13} /> 放弃这次结果

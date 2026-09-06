@@ -508,6 +508,37 @@ svg text { image-rendering: auto; }
     linear-gradient(180deg, var(--color-wood-500) 0 2px, var(--color-wood-700) 2px 6px, var(--color-wood-900) 6px 8px, transparent 8px);
 }
 
+/* Agent 状态只各用一种身体语言：外层走位交给 Motion，角色内部走像素帧。 */
+@keyframes agent-idle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes agent-speaking {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-3px) scaleY(1.015); }
+}
+
+@keyframes agent-angry {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-4px) rotate(-2deg); }
+  50% { transform: translateX(4px) rotate(2deg); }
+  75% { transform: translateX(-2px) rotate(-1deg); }
+}
+
+@keyframes agent-happy {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-6px) scale(1.035); }
+  70% { transform: translateY(1px) scale(.99); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.agent-motion-idle { animation: agent-idle 3.2s steps(2, end) infinite; }
+.agent-motion-thinking { animation: none; }
+.agent-motion-speaking { animation: agent-speaking .38s steps(2, end) infinite; }
+.agent-motion-angry { animation: agent-angry .42s steps(4, end) 1; }
+.agent-motion-happy { animation: agent-happy .56s steps(4, end) 1; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

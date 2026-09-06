@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { AgentSpec, AgentStatus } from '../../types'
+import { agentMotionClass } from './agentMotion'
 
 function hash(s: string): number {
   let h = 2166136261
@@ -33,11 +34,7 @@ interface Props {
 
 export default function AgentSprite({ agent, status, size = 96, petKind = 'cat', className, animated = true }: Props) {
   const seed = hash(agent.id)
-  const anim = !animated ? '' :
-    status === 'speaking' ? 'animate-bob'
-      : status === 'angry' ? 'animate-shake'
-        : status === 'happy' ? 'animate-bob'
-          : 'animate-float'
+  const anim = agentMotionClass(status, animated)
   const isElder = ['father', 'mother', 'grandparent'].includes(agent.relation)
 
   return (
@@ -46,20 +43,26 @@ export default function AgentSprite({ agent, status, size = 96, petKind = 'cat',
         style={{ transformOrigin: '50% 100%' }}>
         <ellipse cx="60" cy="141" rx="30" ry="6" fill="rgba(0,0,0,.42)" />
         {agent.kind === 'pet' ? (
-          <Pet color={agent.color} status={status} kind={petKind} seed={seed} />
+          <Pet color={agent.color} status={status} kind={petKind} seed={seed} animated={animated} />
         ) : agent.kind === 'ai' ? (
-          <Robot color={agent.color} status={status} />
+          <Robot color={agent.color} status={status} animated={animated} />
         ) : (
-          <Human agent={agent} status={status} seed={seed} elder={isElder} />
+          <Human agent={agent} status={status} seed={seed} elder={isElder} animated={animated} />
         )}
-        <StatusFx status={status} kind={agent.kind} />
+        <StatusFx status={status} kind={agent.kind} animated={animated} />
       </svg>
     </div>
   )
 }
 
 /* ------------------------------------------------------------------ human */
-function Human({ agent, status, seed, elder }: { agent: AgentSpec; status: AgentStatus; seed: number; elder: boolean }) {
+function Human({ agent, status, seed, elder, animated }: {
+  agent: AgentSpec
+  status: AgentStatus
+  seed: number
+  elder: boolean
+  animated: boolean
+}) {
   const skin = SKINS[seed % SKINS.length]
   const hairColor = elder ? ELDER_HAIR : HAIRS[(seed >> 3) % HAIRS.length]
   const hairStyle = elder ? 4 : (seed >> 6) % 4
@@ -103,7 +106,7 @@ function Human({ agent, status, seed, elder }: { agent: AgentSpec; status: Agent
       <circle cx="36" cy="44" r="4" fill={skin} />
       <circle cx="84" cy="44" r="4" fill={skin} />
       <Hair style={hairStyle} color={hairColor} feminine={feminine} />
-      <Face status={status} personality={agent.personality} />
+      <Face status={status} personality={agent.personality} animated={animated} />
       <Accessory agent={agent} skin={skin} elder={elder} />
     </g>
   )
@@ -149,7 +152,7 @@ function Hair({ style, color, feminine }: { style: number; color: string; femini
   }
 }
 
-function Face({ status, personality }: { status: AgentStatus; personality: string }) {
+function Face({ status, personality, animated }: { status: AgentStatus; personality: string; animated: boolean }) {
   const angry = status === 'angry'
   const happy = status === 'happy'
   const speaking = status === 'speaking'
@@ -173,7 +176,7 @@ function Face({ status, personality }: { status: AgentStatus; personality: strin
           <path d="M65 44 Q69 40 73 44" stroke="#1b1d24" strokeWidth="2.4" fill="none" strokeLinecap="round" />
         </>
       ) : (
-        <g className="animate-blink" style={{ transformOrigin: '60px 44px' }}>
+        <g className={animated ? 'animate-blink' : ''} style={{ transformOrigin: '60px 44px' }}>
           <ellipse cx="51" cy="44" rx="2.6" ry="3.4" fill="#1b1d24" />
           <ellipse cx="69" cy="44" rx="2.6" ry="3.4" fill="#1b1d24" />
           <circle cx="52" cy="43" r="0.9" fill="#fff" />
@@ -181,7 +184,7 @@ function Face({ status, personality }: { status: AgentStatus; personality: strin
         </g>
       )}
       {speaking ? (
-        <ellipse cx="60" cy="56" rx="4.5" ry="3.5" fill="#7a2c2c" className="animate-caret" />
+        <ellipse cx="60" cy="56" rx="4.5" ry="3.5" fill="#7a2c2c" className={animated ? 'animate-caret' : ''} />
       ) : angry ? (
         <path d="M54 59 Q60 53 66 59" stroke="#1b1d24" strokeWidth="2" fill="none" strokeLinecap="round" />
       ) : happy ? (
@@ -293,7 +296,13 @@ function Accessory({ agent, skin, elder }: { agent: AgentSpec; skin: string; eld
 }
 
 /* -------------------------------------------------------------------- pet */
-function Pet({ color, status, kind, seed }: { color: string; status: AgentStatus; kind: 'cat' | 'dog'; seed: number }) {
+function Pet({ color, status, kind, seed, animated }: {
+  color: string
+  status: AgentStatus
+  kind: 'cat' | 'dog'
+  seed: number
+  animated: boolean
+}) {
   const fur = kind === 'cat' ? '#f4a259' : '#d8a56b'
   const furDark = kind === 'cat' ? '#d97d2b' : '#a9784a'
   const angry = status === 'angry'
@@ -302,7 +311,7 @@ function Pet({ color, status, kind, seed }: { color: string; status: AgentStatus
     <g>
       {/* tail */}
       <path d="M86 116 Q108 108 100 84" stroke={fur} strokeWidth="9" fill="none" strokeLinecap="round"
-        className="animate-wag" style={{ transformOrigin: '86px 116px' }} />
+        className={animated ? 'animate-wag' : ''} style={{ transformOrigin: '86px 116px' }} />
       {/* body */}
       <ellipse cx="60" cy="112" rx="32" ry="24" fill={fur} />
       {kind === 'cat' && (
@@ -339,7 +348,7 @@ function Pet({ color, status, kind, seed }: { color: string; status: AgentStatus
           <path d="M66 66 Q70 61 74 66" stroke="#1b1d24" strokeWidth="2.4" fill="none" strokeLinecap="round" />
         </>
       ) : (
-        <g className="animate-blink" style={{ transformOrigin: '60px 66px' }}>
+        <g className={animated ? 'animate-blink' : ''} style={{ transformOrigin: '60px 66px' }}>
           <ellipse cx="50" cy="66" rx="4" ry={angry ? 3 : 5} fill="#1b1d24" />
           <ellipse cx="70" cy="66" rx="4" ry={angry ? 3 : 5} fill="#1b1d24" />
           <circle cx="51" cy="64" r="1.3" fill="#fff" />
@@ -365,15 +374,13 @@ function Pet({ color, status, kind, seed }: { color: string; status: AgentStatus
 }
 
 /* ------------------------------------------------------------------ robot */
-function Robot({ color, status }: { color: string; status: AgentStatus }) {
+function Robot({ color, status, animated }: { color: string; status: AgentStatus; animated: boolean }) {
   const speaking = status === 'speaking'
   return (
-    <g className="animate-glitch">
+    <g className={animated ? 'animate-glitch' : ''}>
       {/* antenna */}
       <path d="M60 22 L60 8" stroke="#8b93a7" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="60" cy="6" r="5" fill={color}>
-        <animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" />
-      </circle>
+      <circle cx="60" cy="6" r="5" fill={color} className={animated ? 'animate-blink-step' : ''} />
       {/* head */}
       <rect x="32" y="22" width="56" height="44" rx="12" fill="#1f2433" stroke={color} strokeWidth="2" />
       <rect x="40" y="30" width="40" height="28" rx="8" fill="#0b0d12" />
@@ -398,23 +405,19 @@ function Robot({ color, status }: { color: string; status: AgentStatus }) {
       {/* torso */}
       <rect x="38" y="70" width="44" height="40" rx="10" fill="#1f2433" stroke={color} strokeWidth="2" />
       <circle cx="60" cy="88" r="7" fill="none" stroke={color} strokeWidth="2" opacity=".8" />
-      <circle cx="60" cy="88" r="3" fill={color}>
-        <animate attributeName="r" values="3;4.5;3" dur="2s" repeatCount="indefinite" />
-      </circle>
+      <circle cx="60" cy="88" r="3" fill={color} className={animated ? 'animate-blink-step' : ''} />
       {/* arms */}
       <rect x="24" y="72" width="10" height="30" rx="5" fill="#2a3142" stroke={color} strokeWidth="1.5" />
       <rect x="86" y="72" width="10" height="30" rx="5" fill="#2a3142" stroke={color} strokeWidth="1.5" />
       {/* hover base */}
-      <ellipse cx="60" cy="122" rx="20" ry="6" fill={color} opacity=".35">
-        <animate attributeName="rx" values="20;24;20" dur="1.8s" repeatCount="indefinite" />
-      </ellipse>
+      <ellipse cx="60" cy="122" rx="20" ry="6" fill={color} opacity=".35" />
       <path d="M48 110 L72 110 L66 120 L54 120 Z" fill="#2a3142" stroke={color} strokeWidth="1.5" />
     </g>
   )
 }
 
 /* -------------------------------------------------------------- status fx */
-function StatusFx({ status, kind }: { status: AgentStatus; kind: string }) {
+function StatusFx({ status, kind, animated }: { status: AgentStatus; kind: string; animated: boolean }) {
   const headY = kind === 'pet' ? 36 : kind === 'ai' ? 10 : 10
   if (status === 'thinking') {
     return (
@@ -423,9 +426,15 @@ function StatusFx({ status, kind }: { status: AgentStatus; kind: string }) {
         <circle cx="76" cy={headY + 18} r="3" fill="#fff" opacity=".8" />
         <circle cx="71" cy={headY + 24} r="1.8" fill="#fff" opacity=".6" />
         {[0, 1, 2].map((i) => (
-          <circle key={i} cx={81 + i * 7} cy={headY + 6} r="2" fill="#5b647a">
-            <animate attributeName="cy" values={`${headY + 6};${headY + 3};${headY + 6}`} dur="0.9s" begin={`${i * 0.15}s`} repeatCount="indefinite" />
-          </circle>
+          <circle
+            key={i}
+            cx={81 + i * 7}
+            cy={headY + 6}
+            r="2"
+            fill="#5b647a"
+            className={animated ? 'animate-blink-step' : ''}
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
         ))}
       </g>
     )
@@ -433,20 +442,26 @@ function StatusFx({ status, kind }: { status: AgentStatus; kind: string }) {
   if (status === 'speaking') {
     return (
       <g stroke="#f1d28f" strokeWidth="2" fill="none" strokeLinecap="round">
-        <path d="M98 40 Q104 48 98 56"><animate attributeName="opacity" values="1;.3;1" dur="0.8s" repeatCount="indefinite" /></path>
-        <path d="M104 34 Q114 48 104 62"><animate attributeName="opacity" values=".3;1;.3" dur="0.8s" repeatCount="indefinite" /></path>
+        <path d="M98 40 Q104 48 98 56" className={animated ? 'animate-blink-step' : ''} />
+        <path d="M104 34 Q114 48 104 62" className={animated ? 'animate-blink-step' : ''} style={{ animationDelay: '.18s' }} />
       </g>
     )
   }
   if (status === 'angry') {
     return (
       <g>
-        <text x="84" y={headY + 14} fontSize="16" fill="#f87171" fontWeight="700">💢</text>
+        <text x="84" y={headY + 14} fontSize="13" fill="#f87171" fontWeight="700">!!</text>
         {[0, 1].map((i) => (
-          <circle key={i} cx={40 + i * 10} cy={headY + 8} r="3" fill="#f87171" opacity=".6">
-            <animate attributeName="cy" values={`${headY + 8};${headY - 6}`} dur="1s" begin={`${i * 0.3}s`} repeatCount="indefinite" />
-            <animate attributeName="opacity" values=".6;0" dur="1s" begin={`${i * 0.3}s`} repeatCount="indefinite" />
-          </circle>
+          <circle
+            key={i}
+            cx={40 + i * 10}
+            cy={headY + 8}
+            r="3"
+            fill="#f87171"
+            opacity=".6"
+            className={animated ? 'animate-rise' : ''}
+            style={{ animationDelay: `${i * 0.18}s`, transformOrigin: `${40 + i * 10}px ${headY + 8}px` }}
+          />
         ))}
       </g>
     )

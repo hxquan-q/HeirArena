@@ -122,7 +122,7 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
           <div className="relative h-36 w-36 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pie} dataKey="value" nameKey="name" innerRadius={36} outerRadius={64} paddingAngle={2} stroke="#0b0d12" strokeWidth={2}>
+                <Pie data={pie} dataKey="value" nameKey="name" innerRadius={36} outerRadius={64} paddingAngle={2} stroke="#0b0d12" strokeWidth={2} isAnimationActive={false}>
                   {pie.map((p) => <Cell key={p.id} fill={p.color} />)}
                 </Pie>
                 <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#151924', border: '1px solid #2a3142', borderRadius: 10, fontSize: 12 }} />

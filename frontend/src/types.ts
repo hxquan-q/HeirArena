@@ -63,6 +63,197 @@ export interface Member {
   model: ModelRef | null
 }
 
+export type RedLineKind = 'no_sell_asset' | 'no_member_gets_asset' | 'not_below_legal' | 'no_co_own_asset' | 'custom'
+export type SoftGoalKind = 'keep_relation' | 'pet_custody' | 'keep_residence' | 'recognition' | 'custom'
+export type BriefConfidence = 'high' | 'medium' | 'low' | 'abstain'
+export type ThreatLevel = 'high' | 'medium' | 'low' | 'none'
+export type ScorePartKey = 'target_assets' | 'min_share' | 'red_lines' | 'soft_goals'
+
+export interface RedLine {
+  kind: RedLineKind
+  asset_id: string | null
+  member_id: string | null
+  text: string
+}
+
+export interface SoftGoal {
+  kind: SoftGoalKind
+  member_id: string | null
+  asset_id: string | null
+  text: string
+}
+
+export interface Goals {
+  target_assets: string[]
+  min_value_share: number | null
+  red_lines: RedLine[]
+  soft_goals: SoftGoal[]
+  narrative: string
+  source: 'user' | 'inferred'
+}
+
+export interface BriefItem {
+  id: string
+  text: string
+  enabled: boolean
+  custom: boolean
+  depends_on: string[]
+  evidence: string[]
+  article: string | null
+  delta_pct: number | null
+  confidence: BriefConfidence | null
+}
+
+export interface Brief {
+  member_id: string
+  baseline: BriefItem[]
+  reachable: BriefItem[]
+  levers: BriefItem[]
+  asset_strategy: BriefItem[]
+  playbook: BriefItem[]
+  opponents: BriefItem[]
+  risks: BriefItem[]
+  generated_by: string
+}
+
+export interface WhatIfDelta {
+  key: string
+  subject_id: string
+  label: string
+  article: string
+  delta_pct: number
+  direction: 'favorable' | 'adverse'
+  evidence: string[]
+}
+
+export interface Reachability {
+  legal_pct: number
+  low: number
+  high: number
+  value_low: number | null
+  value_high: number | null
+  favorable_keys: string[]
+  adverse_keys: string[]
+}
+
+export interface CoalitionRow {
+  member_id: string
+  potential_confirmers: string[]
+  gain_pct: number
+  exposure_from: string[]
+}
+
+export interface AssetCompetitionRow {
+  asset_id: string
+  competitors: string[]
+  can_absorb: Record<string, boolean>
+  pref_score: Record<string, number>
+  predicted_winner: string | null
+  compensation_needed: number
+}
+
+export interface PayoffRow {
+  option: string
+  label: string
+  my_value: number
+  my_value_share: number
+  assets_obtained: string[]
+  compensation_paid: number
+  compensation_received: number
+}
+
+export interface EquilibriumRow {
+  profile: Record<string, string>
+  payoffs: Record<string, number>
+  my_value: number
+  my_value_share: number
+  stable: boolean
+  note: string
+}
+
+export interface GameTables {
+  coalition: CoalitionRow[]
+  asset_competition: AssetCompetitionRow[]
+  payoff: PayoffRow[]
+  equilibrium: EquilibriumRow[]
+}
+
+export interface ScorecardPart {
+  key: ScorePartKey
+  label: string
+  score: number
+  max: number
+  applicable: boolean
+  detail: string
+  turn_ids: string[]
+}
+
+export interface Scorecard {
+  member_id: string
+  parts: ScorecardPart[]
+  total: number
+  capped: boolean
+  formula: string
+  value_share: number
+  nominal_pct: number
+  legal_pct: number
+}
+
+export interface MatrixRow {
+  member_id: string
+  baseline_pct: number
+  reachable: Reachability | null
+  target_assets: string[]
+  conflicts_with_player: string[]
+  potential_allies: string[]
+  strategy_summary: string
+  threat_level: ThreatLevel
+  no_legal_share_reason: string | null
+  achieved: Scorecard | null
+}
+
+export interface StrategyPack {
+  player_id: string
+  matrix: MatrixRow[]
+  briefs: Record<string, Brief>
+  game: GameTables
+  reachability: Reachability
+  whatif: WhatIfDelta[]
+  evidence_checklist: EvidenceHint[]
+  warnings: string[]
+  generated_by: string
+  generated_at: number
+}
+
+export interface EvidenceHint {
+  lever: string
+  label: string
+  article: string
+  evidence: string[]
+  burden: string
+  note?: string
+}
+
+export interface SeatConfig {
+  player_id: string
+  goals: Record<string, Goals>
+  seat_human: boolean
+  advisor_model: ModelRef | null
+  strategy: StrategyPack | null
+}
+
+export interface SeatAnalysis {
+  player_id: string
+  legal: LegalResult
+  reachability: Reachability
+  whatif: WhatIfDelta[]
+  evidence_checklist: EvidenceHint[]
+  inferred_goals: Record<string, Goals>
+  game: GameTables
+  matrix: MatrixRow[]
+  warnings: string[]
+}
+
 export interface CaseInput {
   decedent_name: string
   story: string
@@ -74,6 +265,7 @@ export interface CaseInput {
   discretion?: number
   default_model: ModelRef | null
   executor_model: ModelRef | null
+  seat: SeatConfig | null
 }
 
 export interface HeirShare {
@@ -221,6 +413,45 @@ export interface EstablishedFact {
   article: string
   text: string
   turn_ids: string[]
+}
+
+export interface SpeechCard {
+  id: string
+  title: string
+  text: string
+  responds_to: string | null
+  action: Action
+  claims: Record<string, number>
+  suggests_admission: Admission | null
+  serves: string[]
+  risk_note: string
+}
+
+export interface AwaitingInfo {
+  turn_key: string
+  phase: Phase
+  round: number
+  attacked_by: string | null
+  focus: string
+  cards_pending: boolean
+}
+
+export interface Debrief {
+  scorecards: Record<string, Scorecard>
+  narrative: string | null
+  next_time: string[]
+  whatif_recap: WhatIfDelta[]
+  generated_by: string
+}
+
+export interface PlayerSpeech {
+  text: string
+  meta: {
+    action?: Action
+    target?: string | null
+    claims?: Record<string, number>
+    admissions: Admission[]
+  }
 }
 
 export interface DoneStats {

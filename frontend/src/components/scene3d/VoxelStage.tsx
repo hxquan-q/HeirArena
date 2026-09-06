@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { ContactShadows, Float } from '@react-three/drei'
+import { useReducedMotion } from 'motion/react'
 import { Suspense } from 'react'
 import type { PxlKitData } from '@pxlkit/core'
 import VoxelIcon from './VoxelIcon'
@@ -21,6 +22,8 @@ interface VoxelStageProps {
  * 把任意 PxlKit 像素图标立体化。配合 CSS 径向渐变做金晕背景。
  */
 export default function VoxelStage({ icon, size = 220, spin = 0.5, glow = 'rgba(214,162,78,.24)', bob = 0.06 }: VoxelStageProps) {
+  const reducedMotion = useReducedMotion()
+
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <div
@@ -44,8 +47,8 @@ export default function VoxelStage({ icon, size = 220, spin = 0.5, glow = 'rgba(
         <spotLight position={[0, 1.5, -6]} angle={0.7} penumbra={1} intensity={0.9} color="#b39bff" />
         <pointLight position={[0, -3, 2]} intensity={0.3} color="#a78bfa" />
         <Suspense fallback={null}>
-          <Float speed={1.6} rotationIntensity={0} floatIntensity={0.35} floatingRange={[-0.08, 0.08]}>
-            <VoxelIcon icon={icon} spin={spin} bob={bob} size={2.6} />
+          <Float speed={reducedMotion ? 0 : 1.6} rotationIntensity={0} floatIntensity={reducedMotion ? 0 : 0.35} floatingRange={[-0.08, 0.08]}>
+            <VoxelIcon icon={icon} spin={reducedMotion ? 0 : spin} bob={reducedMotion ? 0 : bob} size={2.6} />
           </Float>
           <ContactShadows position={[0, -1.55, 0]} scale={7} blur={2.6} far={4} opacity={0.4} color="#000000" />
         </Suspense>

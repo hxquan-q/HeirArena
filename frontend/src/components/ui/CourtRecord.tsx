@@ -1,13 +1,12 @@
 import { PixelStatCard } from '@pxlkit/ui-kit'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowRight, Gavel } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PERSONALITIES } from '../../data/presets'
 import { sfx } from '../../lib/sfx'
 import type { CaseInput, LegalResult, Member } from '../../types'
 import { Balance as PixelBalance, Gavel as PixelGavel } from '../icons/pixel'
-
-const VoxelStage = lazy(() => import('../scene3d/VoxelStage'))
+import SafeVoxelStage from '../scene3d/SafeVoxelStage'
 
 interface Props {
   c: CaseInput
@@ -16,7 +15,7 @@ interface Props {
   valid: boolean
   submitting: boolean
   submitErr: string | null
-  onStart: () => void
+  onStart?: () => void
   /** 是否显示 3D 体素图腾（窄屏关掉） */
   sigil?: boolean
 }
@@ -63,9 +62,14 @@ export default function CourtRecord({ c, preview, previewErr, valid, submitting,
           </button>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={balance ? 'b' : 'g'} initial={{ opacity: 0, rotateY: 40 }} animate={{ opacity: 1, rotateY: 0 }} exit={{ opacity: 0, rotateY: -40 }} transition={{ duration: 0.25 }}>
-              <Suspense fallback={<div className="pixel-text flex h-[120px] w-[120px] items-center justify-center text-[12px] text-paper-muted">LOADING…</div>}>
-                <VoxelStage icon={balance ? PixelBalance : PixelGavel} size={120} spin={0.5} bob={0.05} glow="rgba(143,101,34,.28)" />
-              </Suspense>
+              <SafeVoxelStage
+                icon={balance ? PixelBalance : PixelGavel}
+                size={120}
+                spin={0.5}
+                bob={0.05}
+                glow="rgba(143,101,34,.28)"
+                fallbackLabel={balance ? '法定份额天平' : '庭审法槌'}
+              />
             </motion.div>
           </AnimatePresence>
         </div>
@@ -95,9 +99,13 @@ export default function CourtRecord({ c, preview, previewErr, valid, submitting,
       <div className="relative flex items-center gap-3 border-t-2 border-dashed border-paper-400 px-3 pt-3 pb-3">
         <WaxSeal valid={valid} />
         <div className="min-w-0 flex-1">
-          <button className="btn-gold w-full justify-center" disabled={!valid || submitting} onClick={onStart}>
-            <Gavel size={15} /> {submitting ? '正在传唤…' : '开庭'} {!submitting && <ArrowRight size={14} />}
-          </button>
+          {onStart ? (
+            <button className="btn-gold w-full justify-center" disabled={!valid || submitting} onClick={onStart}>
+              <Gavel size={15} /> {submitting ? '正在传唤…' : '开庭'} {!submitting && <ArrowRight size={14} />}
+            </button>
+          ) : (
+            <p className="pixel-text text-[12px] text-paper-muted">翻到第 IV 卷「入局」再开庭</p>
+          )}
           <p className="mt-1.5 text-[11px] leading-snug text-paper-muted">
             {valid ? '卷宗齐备，火漆已封。' : `待补：${missing.join('、')}`}
           </p>

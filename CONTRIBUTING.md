@@ -29,8 +29,10 @@ npm run dev
 
 ```bash
 cd backend && python -m pytest -q
-cd frontend && npm run build
+cd frontend && npm test && npm run build
 ```
+
+入局推演的后端测试以 `backend/tests/test_seat_*.py` 为前缀；前端席位用例在 `src/store/useCaseDraft.test.ts` 与 `src/store/useCourt.test.ts`。改动席位、简报、记分卡或导出时请同时跑对应文件。设计决策见 [docs/入局推演-设计说明.md](docs/入局推演-设计说明.md)。
 
 ## Pull Request 建议
 
@@ -45,4 +47,4 @@ Issue 中请尽量包含：复现步骤、是否使用 LLM / 剧本模式、浏�
 
 ## 免责声明
 
-本仓库输出的是娱乐化模拟与参考计算，**不构成法律意见**。
+本仓库输出的是娱乐化模拟与参考计算，**不构成法律意见**。入局推演给出的策略与记分卡是基于输入事实的沙盘推演，同样不构成法律意见。

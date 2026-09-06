@@ -8,11 +8,81 @@ from urllib.parse import urlparse
 
 import httpx
 
+from ..config import Settings
+from ..models import ModelRef
+
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal"}
 
 
 class LLMError(RuntimeError):
     pass
+
+
+class ModelUnavailable(LLMError):
+    """指定的模型槽位无法解析为可用的 LLMClient。"""
+
+
+def repair_messages(
+    messages: list[dict[str, str]],
+    raw: str,
+    error: str,
+) -> list[dict[str, str]]:
+    return [
+        *messages,
+        {"role": "assistant", "content": raw[:20_000]},
+        {
+            "role": "user",
+            "content": (
+                "上一个 JSON 未通过校验。请只重新输出修正后的完整 JSON 对象；"
+                "不要补写原文没有的事实。\n校验错误：\n"
+                f"{error[:4_000]}"
+            ),
+        },
+    ]
+
+
+def resolve_client(
+    ref: ModelRef | None,
+    settings: Settings,
+    providers,
+    *,
+    temperature: float,
+    timeout: float,
+    purpose: str,
+) -> tuple["LLMClient", str]:
+    from ..providers import Provider, ProviderStore
+
+    provider: Provider | None = None
+    model = ""
+    if ref is not None:
+        if ref.is_mock:
+            raise ModelUnavailable(f"{purpose}必须选择一个可用模型，不能使用剧本模式")
+        provider = providers.get(ref.provider_id, settings)
+        if provider is None:
+            raise ModelUnavailable(f"{purpose}供应商「{ref.provider_id}」不存在")
+        model = ref.model or (provider.models[0] if provider.models else "")
+    else:
+        env = ProviderStore.env_provider(settings)
+        if env is not None and env.ready:
+            provider = env
+            model = settings.model or (env.models[0] if env.models else "")
+        else:
+            provider = next(
+                (p for p, _source in providers.list(settings) if p.ready and p.models),
+                None,
+            )
+            model = provider.models[0] if provider and provider.models else ""
+    if provider is None or not provider.ready or not model:
+        raise ModelUnavailable(f"没有可用的{purpose}模型，请先在「模型供应商」中完成配置")
+    client = LLMClient(
+        provider.base_url,
+        provider.api_key,
+        model,
+        temperature=temperature,
+        timeout=timeout,
+        label=f"{provider.name} · {model}",
+    )
+    return client, client.label
 
 
 def is_local_url(url: str) -> bool:
@@ -35,6 +105,16 @@ class LLMClient:
 
     def _http(self, timeout: float | None = None) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=timeout or self.timeout, trust_env=self.trust_env)
+
+    def _network_error(self, e: httpx.HTTPError) -> LLMError:
+        # httpx 的超时 / 连接异常 str() 经常是空串，直接拼进消息会得到一个没有原因的「网络错误:」。
+        if isinstance(e, httpx.TimeoutException):
+            return LLMError(
+                f"LLM 请求超时：{self.label} 在 {self.timeout:.0f} 秒内没有返回；"
+                "可在 .env 提高 LLM_TIMEOUT，或换一个更快的模型"
+            )
+        detail = str(e).strip() or type(e).__name__
+        return LLMError(f"LLM 网络错误（{self.base_url}）: {detail}")
 
     def _payload(self, messages: list[dict], stream: bool, json_mode: bool, temperature: float | None) -> dict:
         payload: dict = {
@@ -81,7 +161,7 @@ class LLMClient:
                             if content:
                                 yield content
         except httpx.HTTPError as e:
-            raise LLMError(f"LLM 网络错误: {e}") from e
+            raise self._network_error(e) from e
 
     async def complete(self, messages: list[dict], json_mode: bool = False, temperature: float | None = None,
                        max_tokens: int | None = None) -> str:
@@ -93,7 +173,7 @@ class LLMClient:
             async with self._http() as client:
                 resp = await client.post(url, headers=self._headers, json=payload)
         except httpx.HTTPError as e:
-            raise LLMError(f"LLM 网络错误: {e}") from e
+            raise self._network_error(e) from e
         if resp.status_code >= 400:
             raise LLMError(f"LLM HTTP {resp.status_code}: {resp.text[:300]}")
         data = resp.json()

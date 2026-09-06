@@ -22,6 +22,7 @@ dist/
 # Local tooling and generated work
 .canva_tmp/
 .playwright-mcp/
+.superpowers/
 
 # HeirArena runtime data
 backend/tmp/
