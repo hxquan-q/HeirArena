@@ -10,7 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.llm import LLMClient  # noqa: E402
 from app.config import Settings  # noqa: E402
-from app.models import ModelRef  # noqa: E402
+from app.legal import compute_legal_shares  # noqa: E402
+from app.models import Goals, ModelRef, RedLine, SoftGoal  # noqa: E402
 from app.providers import ProviderStore, ProviderUpsert  # noqa: E402
 from app.seat.advisor import (  # noqa: E402
     AdvisorUnavailable,
@@ -20,6 +21,7 @@ from app.seat.advisor import (  # noqa: E402
     MatrixSummaryOut,
     MetaOut,
     complete_schema,
+    generate_debrief,
     resolve_advisor,
 )
 from tests.seat_fixtures import seated  # noqa: E402
@@ -94,5 +96,86 @@ def test_advisor_schemas_forbid_unknown_and_overlong():
             {"title": "防守", "text": "不自认", "responds_to": "son", "action": "ally", "claims": {}, "suggests_admission": None, "serves": "risks-0", "risk_note": "勿自认"},
         ]
     })
+    with pytest.raises(ValidationError):
+        CardsOut.model_validate({
+            "cards": [
+                {"title": "开场", "text": "先报法定份额", "action": "threaten"},
+                {"title": "防守", "text": "守住底线", "action": "propose"},
+            ]
+        })
     MetaOut.model_validate({"action": "propose", "target": None, "claims": {"house": 50}})
     DebriefOut.model_validate({"soft_scores": {}, "custom_red_lines": {}, "narrative": "复盘", "next_time": []})
+    with pytest.raises(ValidationError):
+        DebriefOut.model_validate({
+            "soft_scores": {"daughter": {"0": 1.2}},
+            "custom_red_lines": {},
+            "narrative": "复盘",
+            "next_time": [],
+        })
+
+
+@pytest.mark.parametrize(
+    "soft_scores,custom_red_lines",
+    [
+        ({"daughter": {"0": 1.0}}, {"daughter": {"0": True, "1": True}}),
+        ({"daughter": {"0": 1.0, "00": 0.5, "1": 1.0}}, {"daughter": {"0": True, "1": True}}),
+        ({"daughter": {"0": 1.0, "1": 1.0}, "intruder": {"0": 1.0}}, {"daughter": {"0": True, "1": True}}),
+        ({"daughter": {"0": 1.0, "1": 1.0}}, {"daughter": {"0": True, "9": True}}),
+    ],
+)
+def test_debrief_rejects_missing_duplicate_alias_extra_member_and_illegal_indexes(
+    soft_scores, custom_red_lines,
+):
+    case = seated("daughter")
+    goals = {
+        "daughter": Goals(
+            soft_goals=[SoftGoal(kind="recognition"), SoftGoal(kind="custom", text="保持体面")],
+            red_lines=[
+                RedLine(kind="custom", text="不公开羞辱"),
+                RedLine(kind="custom", text="不出售纪念物"),
+            ],
+            source="user",
+        )
+    }
+    payload = {
+        "soft_scores": soft_scores,
+        "custom_red_lines": custom_red_lines,
+        "rationales": {},
+        "narrative": "复盘",
+        "next_time": [],
+    }
+
+    async def fake(_client, _messages):
+        return json.dumps(payload, ensure_ascii=False)
+
+    with pytest.raises(AdvisorUnavailable):
+        asyncio.run(generate_debrief(
+            object(), case, compute_legal_shares(case), {}, "", goals, [], "daughter", complete=fake,
+        ))
+
+
+def test_debrief_accepts_exact_complete_score_indexes():
+    case = seated("daughter")
+    goals = {
+        "daughter": Goals(
+            soft_goals=[SoftGoal(kind="recognition"), SoftGoal(kind="custom", text="保持体面")],
+            red_lines=[RedLine(kind="custom", text="不公开羞辱")],
+            source="user",
+        )
+    }
+    payload = {
+        "soft_scores": {"daughter": {"0": 0.5, "1": 1.0}},
+        "custom_red_lines": {"daughter": {"0": True}},
+        "rationales": {},
+        "narrative": "复盘",
+        "next_time": [],
+    }
+
+    async def fake(_client, _messages):
+        return json.dumps(payload, ensure_ascii=False)
+
+    result = asyncio.run(generate_debrief(
+        object(), case, compute_legal_shares(case), {}, "", goals, [], "daughter", complete=fake,
+    ))
+    assert set(result.soft_scores["daughter"]) == {"0", "1"}
+    assert set(result.custom_red_lines["daughter"]) == {"0"}

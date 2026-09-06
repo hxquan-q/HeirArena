@@ -1,4 +1,4 @@
-import { PixelAlertDialog, PixelSegmented, PixelSwitch } from '@pxlkit/ui-kit'
+import { PixelAlertDialog, PixelButton, PixelSegmented, PixelSwitch } from '@pxlkit/ui-kit'
 import { useState, type ReactNode } from 'react'
 import { describeRef, useProviders } from '../../hooks/useProviders'
 import { useCaseDraft, useSeatAnalysis } from '../../store/useCaseDraft'
@@ -106,9 +106,9 @@ export default function SeatChapter({ onManageProviders, onGoFile }: Props) {
                   </p>
                   <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-300">
                     <span>当前军师：{advisorLabel}</span>
-                    <button type="button" className="pixel-text text-gold-300 hover:underline" onClick={onGoFile}>
+                    <PixelButton type="button" size="sm" variant="ghost" onClick={onGoFile}>
                       去第 I 卷修改
-                    </button>
+                    </PixelButton>
                   </div>
                 </div>
               </Block>

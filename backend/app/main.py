@@ -329,10 +329,52 @@ def _apply_speak(s: Session, pending: dict) -> None:
     s.status = "running"
 
 
+def _rollback_speak_claim(
+    s: Session, *, status: str, pending: dict | None, task: asyncio.Task | None,
+    human: bool, orch: Orchestrator,
+) -> None:
+    assert s.seat is not None
+    s.status = status
+    s.seat.pending = pending
+    s.seat.human = human
+    s.task = task
+    try:
+        s.persist_snapshot(orch._extras())
+    except Exception:
+        # 原始持久化故障仍向调用方传播；内存态已恢复，可在存储恢复后重试。
+        pass
+
+
+def _commit_speak_claim(s: Session, pending: dict, *, human: bool | None = None) -> None:
+    assert s.seat is not None
+    orch = _ensure_orch(s)
+    previous_status = s.status
+    previous_pending = s.seat.pending
+    previous_task = s.task
+    previous_human = s.seat.human
+    _apply_speak(s, pending)
+    if human is not None:
+        s.seat.human = human
+    try:
+        s.persist_snapshot(orch._extras())
+        if s.task is None or s.task.done():
+            s.task = _spawn(orch, resume=True)
+    except Exception:
+        _rollback_speak_claim(
+            s,
+            status=previous_status,
+            pending=previous_pending,
+            task=previous_task,
+            human=previous_human,
+            orch=orch,
+        )
+        raise
+
+
 def _meta_needs_extract(meta: SpeakMeta | None) -> bool:
     if meta is None:
         return True
-    return meta.action is None and meta.target is None and meta.claims is None
+    return not {"action", "target", "claims"}.issubset(meta.model_fields_set)
 
 
 async def _prepare_pending(s: Session, body: SpeakBody) -> dict:
@@ -360,11 +402,21 @@ async def _prepare_pending(s: Session, body: SpeakBody) -> dict:
                     [a.id for a in s.specs],
                     [asset.id for asset in s.case.assets],
                 )
-                meta.update(extracted)
+                supplied = body.meta.model_fields_set if body.meta else set()
+                for key in ("action", "target", "claims"):
+                    if key not in supplied:
+                        meta[key] = extracted[key]
             except Exception:
                 meta.update({"action": "propose", "target": None, "claims": {}})
         else:
             meta.update({"action": "propose", "target": None, "claims": {}})
+        if body.meta is not None:
+            if "action" in body.meta.model_fields_set:
+                meta["action"] = body.meta.action
+            if "target" in body.meta.model_fields_set:
+                meta["target"] = body.meta.target
+            if "claims" in body.meta.model_fields_set:
+                meta["claims"] = body.meta.claims
     else:
         assert body.meta is not None
         if body.meta.action:
@@ -451,30 +503,25 @@ async def set_seat(session_id: str, body: SeatBody) -> dict:
         raise HTTPException(404, "旁观会话没有席位")
     if s.status in {"done", "cancelled", "error"}:
         raise HTTPException(409, "听证会已经结束")
-    s.seat.human = body.human
-    s.emit("seat", {"human": body.human})
-    if s.status == "awaiting_player" and not body.human:
-        pending = await _prepare_pending(s, SpeakBody(delegate=True))
-        _apply_speak(s, pending)
+    async with s.speak_lock:
+        if s.status == "awaiting_player" and not body.human:
+            pending = await _prepare_pending(s, SpeakBody(delegate=True))
+            _commit_speak_claim(s, pending, human=False)
+            s.emit("seat", {"human": False})
+            return {"ok": True, "human": False}
+        s.seat.human = body.human
+        s.emit("seat", {"human": body.human})
         orch = _ensure_orch(s)
         s.persist_snapshot(orch._extras())
-        if s.task is None or s.task.done():
-            s.task = _spawn(orch, resume=True)
-        return {"ok": True, "human": False}
-    orch = _ensure_orch(s)
-    s.persist_snapshot(orch._extras())
     return {"ok": True, "human": body.human}
 
 
 @app.post("/api/sessions/{session_id}/speak")
 async def speak(session_id: str, body: SpeakBody) -> dict:
     s = _get(session_id)
-    pending = await _prepare_pending(s, body)
-    _apply_speak(s, pending)
-    orch = _ensure_orch(s)
-    s.persist_snapshot(orch._extras())
-    if s.task is None or s.task.done():
-        s.task = _spawn(orch, resume=True)
+    async with s.speak_lock:
+        pending = await _prepare_pending(s, body)
+        _commit_speak_claim(s, pending)
     return {"ok": True}
 
 

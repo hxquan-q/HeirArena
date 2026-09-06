@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.legal import ARTICLES, compute_legal_shares  # noqa: E402
-from app.models import Goals, RedLine  # noqa: E402
+from app.models import Goals, RedLine, SoftGoal  # noqa: E402
 from app.seat.analysis import analyze, merged_goals  # noqa: E402
 from app.seat.advisor import generate_briefs, rules_brief, seat_secret_strings  # noqa: E402
 from app.seat.prompts import PERSONA_PRIORITY, brief_messages, persona_guidance  # noqa: E402
@@ -31,7 +31,11 @@ def _case_with_secrets():
             "daughter": Goals(
                 target_assets=["album"],
                 min_value_share=61.7,
-                red_lines=[RedLine(kind="custom", text="PLAYER_REDLINE_SECRET")],
+                red_lines=[
+                    RedLine(kind="custom", text="PLAYER_REDLINE_SECRET"),
+                    RedLine(kind="no_sell_asset", asset_id="album"),
+                ],
+                soft_goals=[SoftGoal(kind="keep_relation", member_id="son")],
                 narrative="SENTINEL_PLAYER_ONLY",
                 source="user",
             ),
@@ -57,6 +61,22 @@ def test_opponent_brief_hides_player_and_edited_secrets():
     assert "SENTINEL_PLAYER_ONLY" not in son_blob
     assert "PLAYER_REDLINE_SECRET" not in son_blob
     assert "SENTINEL_SON_USER_GOAL" in son_blob
+
+
+def test_opponent_brief_excludes_other_goal_fields_and_derived_game_tables():
+    case = _case_with_secrets()
+    legal = compute_legal_shares(case)
+    analysis = analyze(case)
+    goals = merged_goals(case, legal)
+    wife_blob = "\n".join(m["content"] for m in brief_messages(case, legal, analysis, "wife", goals, "daughter"))
+
+    assert "目标资产（有序）：album" not in wife_blob
+    assert "no_sell_asset album" not in wife_blob
+    assert "keep_relation  son" not in wife_blob
+    assert "SENTINEL_SON_USER_GOAL" not in wife_blob
+    assert "- 联盟 " not in wife_blob
+    assert "- 资产竞争 " not in wife_blob
+    assert "- 收益 " not in wife_blob
 
 
 def test_player_brief_includes_opponent_goals():
@@ -137,5 +157,5 @@ def test_rules_brief_has_risk_section():
     analysis = analyze(seated("daughter"))
     brief = rules_brief(analysis, "daughter")
     assert len(brief.risks) == 3
-    assert any("1.5" in item.text for item in brief.risks)
+    assert any("本身不改变份额" in item.text for item in brief.risks)
     assert any("3" in item.text for item in brief.risks)

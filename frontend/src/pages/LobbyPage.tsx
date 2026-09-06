@@ -4,19 +4,18 @@ import { GhostFriend, MagicOrb, PixelCrown, PixelHeart } from '@pxlkit/parallax'
 import { Gear } from '@pxlkit/ui'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, BookOpen, Check, Clapperboard } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type ServerConfig } from '../api/client'
 import ProviderManager from '../components/ProviderManager'
 import { RoomBackground } from '../components/scene/Room'
+import SafeVoxelStage from '../components/scene3d/SafeVoxelStage'
 import { ModeBadge, SfxToggle } from '../components/ui/TopBar'
 import { Gavel as PixelGavel } from '../components/icons/pixel'
 import { PRESETS } from '../data/presets'
 import { useProviders } from '../hooks/useProviders'
 import { sfx } from '../lib/sfx'
 import { useCaseDraft } from '../store/useCaseDraft'
-
-const VoxelStage = lazy(() => import('../components/scene3d/VoxelStage'))
 
 type MenuId = 'continue' | 'episodes' | 'import' | 'providers'
 interface MenuItem {
@@ -145,9 +144,14 @@ export default function LobbyPage() {
 
           <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="relative h-[200px] w-[200px]">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_55%,rgba(226,178,90,.28),transparent_62%)]" aria-hidden />
-            <Suspense fallback={<div className="pixel-text flex h-full items-center justify-center text-[12px] text-gold-400">LOADING…</div>}>
-              <VoxelStage icon={PixelGavel} size={200} spin={0.4} bob={0.07} glow="rgba(226,178,90,.32)" />
-            </Suspense>
+            <SafeVoxelStage
+              icon={PixelGavel}
+              size={200}
+              spin={0.4}
+              bob={0.07}
+              glow="rgba(226,178,90,.32)"
+              fallbackLabel="法槌图腾"
+            />
           </motion.div>
 
           <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08 }}

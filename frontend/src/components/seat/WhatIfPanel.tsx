@@ -1,4 +1,4 @@
-import { PixelChip, PixelDrawer, PixelSkeleton, PixelSwitch, PixelTooltip } from '@pxlkit/ui-kit'
+import { PixelButton, PixelChip, PixelDrawer, PixelSkeleton, PixelSwitch, PixelTooltip } from '@pxlkit/ui-kit'
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../api/client'
 import { applyWhatIfKeys } from '../../lib/seat'
@@ -61,6 +61,9 @@ export default function WhatIfPanel() {
   const shownSandbox = onKeys.length ? sandbox : null
   const sandboxPct = shownSandbox?.shares.find((s) => s.member_id === playerId)?.percent
   const checklist = (analysis.evidence_checklist ?? []).map(asHint)
+  const drawerHint = drawer
+    ? checklist.find((hint) => hint.lever === drawer.key.split(':', 1)[0])
+    : undefined
 
   return (
     <div className="space-y-4">
@@ -110,6 +113,12 @@ export default function WhatIfPanel() {
         {drawer && (
           <PixelDrawer.Body className="space-y-2">
             <PixelChip label={`第${drawer.article}条`} size="sm" tone="gold" />
+            {drawerHint?.burden && (
+              <p className="text-[12px] leading-relaxed text-ink-300">
+                <span className="pixel-text text-gold-300">举证责任：</span>{drawerHint.burden}
+              </p>
+            )}
+            {drawerHint?.note && <p className="text-[11px] text-gold-400">{drawerHint.note}</p>}
             <ul className="list-disc space-y-1 pl-4 text-[13px] text-ink-200">
               {drawer.evidence.map((ev) => <li key={ev}>{ev}</li>)}
             </ul>
@@ -150,7 +159,7 @@ function ToggleGroup({
               </span>
               <PixelChip label={`第${item.article}条`} size="sm" />
               <PixelTooltip content={item.evidence.slice(0, 4).join(' · ') || '查看证据'}>
-                <button type="button" className="btn-ghost h-7 px-2 text-[11px]" onClick={() => onEvidence(item)}>证据</button>
+                <PixelButton type="button" size="sm" variant="ghost" onClick={() => onEvidence(item)}>证据</PixelButton>
               </PixelTooltip>
             </li>
           )

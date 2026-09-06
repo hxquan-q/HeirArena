@@ -132,7 +132,9 @@ def persona_guidance(member) -> str:
     )
 
 
-def deterministic_context_for(analysis: SeatAnalysis, member_id: str) -> str:
+def deterministic_context_for(
+    analysis: SeatAnalysis, member_id: str, *, include_goal_derived_game: bool = True,
+) -> str:
     row = next((r for r in analysis.matrix if r.member_id == member_id), None)
     reach = row.reachable if row and row.reachable else analysis.reachability
     lines = [
@@ -145,19 +147,20 @@ def deterministic_context_for(analysis: SeatAnalysis, member_id: str) -> str:
         for delta in analysis.whatif:
             ev = "、".join(delta.evidence[:3])
             lines.append(f"- what-if {delta.label} Δ{delta.delta_pct:+.1f}% 证据：{ev}")
-    for coal in analysis.game.coalition:
-        if coal.member_id == member_id or member_id in coal.potential_confirmers or member_id in coal.exposure_from:
-            lines.append(
-                f"- 联盟 {coal.member_id} 确认人 {','.join(coal.potential_confirmers) or '无'} "
-                f"暴露于 {','.join(coal.exposure_from) or '无'}"
-            )
-    for comp in analysis.game.asset_competition:
-        if member_id in comp.competitors or (row and comp.asset_id in row.target_assets):
-            lines.append(
-                f"- 资产竞争 {comp.asset_id} 竞争者 {','.join(comp.competitors)} "
-                f"预测 {comp.predicted_winner or '无'}"
-            )
-    if member_id == analysis.player_id:
+    if include_goal_derived_game:
+        for coal in analysis.game.coalition:
+            if coal.member_id == member_id or member_id in coal.potential_confirmers or member_id in coal.exposure_from:
+                lines.append(
+                    f"- 联盟 {coal.member_id} 确认人 {','.join(coal.potential_confirmers) or '无'} "
+                    f"暴露于 {','.join(coal.exposure_from) or '无'}"
+                )
+        for comp in analysis.game.asset_competition:
+            if member_id in comp.competitors or (row and comp.asset_id in row.target_assets):
+                lines.append(
+                    f"- 资产竞争 {comp.asset_id} 竞争者 {','.join(comp.competitors)} "
+                    f"预测 {comp.predicted_winner or '无'}"
+                )
+    if member_id == analysis.player_id and include_goal_derived_game:
         for pay in analysis.game.payoff:
             lines.append(
                 f"- 收益 {pay.label} 价值 {pay.my_value:.1f} 万 / {pay.my_value_share:.1f}%"
@@ -181,7 +184,7 @@ def brief_messages(
     own = all_goals.get(member_id, Goals())
     user = (
         f"{public_context(case, legal)}\n\n"
-        f"{deterministic_context_for(analysis, member_id)}\n\n"
+        f"{deterministic_context_for(analysis, member_id, include_goal_derived_game=member_id == player_id)}\n\n"
         f"{persona_guidance(member)}\n\n"
         f"{own_goals_block(own)}\n"
         f"请为成员 {member_id}（{member.name}）写七节简报 JSON。"
@@ -294,10 +297,14 @@ def debrief_messages(
         f"{SAFETY_PREAMBLE}\n"
         "闭庭复盘。只输出 JSON DebriefOut："
         '{"soft_scores":{"成员id":{"0":0.5}},"custom_red_lines":{"成员id":{"0":true}},'
-        '"rationales":{"成员id":["理由"]},"narrative":"","next_time":[]}\n'
+        '"rationales":{"成员id":[{"kind":"soft_goal|custom_red_line","index":0,'
+        '"reason":"理由","turn_ids":["真实发言id"]}]},"narrative":"","next_time":[]}\n'
         "soft_scores[member_id][index] ∈ [0,1]；custom_red_lines 为 true/false。\n"
+        "必须对每位成员的每一条 soft_goal 和每一条 custom 红线恰好评分一次；"
+        "索引使用从 0 开始的规范十进制字符串，不得遗漏、重复或增加不存在的成员/索引。\n"
         "narrative 只写给玩家：哪句发言起了作用、哪个对手论点没接住、哪次让步多余，引用 turn_id。\n"
-        "next_time ≤5 条，换策略或目标须引用可达区间数字。rationales 不进入 narrative。"
+        "next_time ≤5 条，换策略或目标须引用可达区间数字。"
+        "rationales 必须逐项给出 kind/index/reason，并且 turn_ids 只能引用庭审记录中的 [t:...]。"
     )
     user = (
         f"{public_context(case, legal)}\n\n"

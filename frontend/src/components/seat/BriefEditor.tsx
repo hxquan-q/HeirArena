@@ -1,5 +1,4 @@
-import { PixelChip, PixelCollapsible, PixelIconButton, PixelInput, PixelSwitch } from '@pxlkit/ui-kit'
-import { Trash2 } from 'lucide-react'
+import { PixelButton, PixelChip, PixelCollapsible, PixelIconButton, PixelInput, PixelSwitch } from '@pxlkit/ui-kit'
 import { useState } from 'react'
 import { BRIEF_SECTIONS, newBriefItem } from '../../lib/seat'
 import { useCaseDraft } from '../../store/useCaseDraft'
@@ -45,7 +44,7 @@ export default function BriefEditor({ memberId }: { memberId: string }) {
                         label="删除自定义条目"
                         size="sm"
                         tone="red"
-                        icon={<Trash2 size={12} />}
+                        icon={<span aria-hidden>×</span>}
                         onClick={() => patchSection(section.key, items.filter((_, i) => i !== index))}
                       />
                     )}
@@ -67,9 +66,11 @@ export default function BriefEditor({ memberId }: { memberId: string }) {
                 placeholder="自定义条目"
                 onChange={(e) => setDrafts((s) => ({ ...s, [section.key]: e.target.value }))}
               />
-              <button
+              <PixelButton
                 type="button"
-                className="btn-ghost h-10 self-end px-3 text-[11px]"
+                size="sm"
+                variant="ghost"
+                className="self-end"
                 onClick={() => {
                   const text = (drafts[section.key] ?? '').trim()
                   if (!text) return
@@ -78,7 +79,7 @@ export default function BriefEditor({ memberId }: { memberId: string }) {
                 }}
               >
                 添加
-              </button>
+              </PixelButton>
             </div>
           </PixelCollapsible>
         )

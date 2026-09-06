@@ -77,6 +77,8 @@ def score_red_lines(goals: Goals, allocation: dict, value_shares: dict[str, floa
         result = evaluate_red_line(rl, allocation, value_shares, legal_percent, me)
         if result is None and custom_red_lines is not None and i in custom_red_lines:
             result = custom_red_lines[i]
+        elif result is None and rl.kind == "custom" and custom_red_lines is not None:
+            result = False
         if result is not None:
             evaluated.append(result)
     if not evaluated:
@@ -92,7 +94,8 @@ def score_red_lines(goals: Goals, allocation: dict, value_shares: dict[str, floa
 
 def build_scorecard(goals: Goals, verdict: dict, me: str,
                     soft_scores: dict[str, float] | None = None,
-                    custom_red_lines: dict[int, bool] | None = None) -> Scorecard:
+                    custom_red_lines: dict[int, bool] | None = None,
+                    rationales: list[dict] | None = None) -> Scorecard:
     allocation = verdict.get("allocation") or {}
     vs = verdict.get("value_shares") or {}
     legal = verdict.get("legal_percent") or {}
@@ -100,11 +103,38 @@ def build_scorecard(goals: Goals, verdict: dict, me: str,
     p_assets = score_target_assets(goals, allocation, me)
     p_share = score_min_share(goals, vs, me)
     p_red, broken = score_red_lines(goals, allocation, vs, legal, me, custom_red_lines)
-    if soft_scores:
-        mean = sum(soft_scores.values()) / max(len(soft_scores), 1)
+    valid_soft = {
+        int(key): max(0.0, min(1.0, float(value)))
+        for key, value in soft_scores.items()
+        if str(key).isdigit() and 0 <= int(key) < len(goals.soft_goals)
+    } if soft_scores else {}
+    if soft_scores is not None and goals.soft_goals:
+        mean = sum(valid_soft.values()) / len(goals.soft_goals)
         p_soft = ScorecardPart(key="soft_goals", label="软目标", score=round(10 * mean, 1), max=10)
     else:
         p_soft = ScorecardPart(key="soft_goals", label="软目标", score=0, max=10, applicable=False)
+    if rationales:
+        for part, kind in ((p_soft, "soft_goal"), (p_red, "custom_red_line")):
+            relevant = [row for row in rationales if row.get("kind") == kind]
+            if not relevant:
+                continue
+            reasons = [str(row.get("reason") or "").strip() for row in relevant]
+            reasons = [reason for reason in reasons if reason]
+            turn_ids = list(dict.fromkeys(
+                str(turn_id)
+                for row in relevant
+                for turn_id in (row.get("turn_ids") or [])
+                if turn_id
+            ))
+            detail = part.detail
+            if reasons:
+                detail = "；".join(filter(None, [detail, *reasons]))
+            if detail or turn_ids:
+                updated = part.model_copy(update={"detail": detail, "turn_ids": turn_ids})
+                if kind == "soft_goal":
+                    p_soft = updated
+                else:
+                    p_red = updated
     parts = [p_assets, p_share, p_red, p_soft]
     applicable = [p for p in parts if p.applicable]
     got = sum(p.score for p in applicable)

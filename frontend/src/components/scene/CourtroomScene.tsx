@@ -121,9 +121,52 @@ export default function CourtroomScene() {
 
   return (
     <div ref={boxRef} className="flex h-full w-full items-center justify-center">
-    <div className={`relative isolate overflow-hidden rounded-2xl border border-white/6 bg-ink-900 shadow-2xl ${gavelVisible ? 'animate-shake' : ''}`}
+    <div className={`relative isolate overflow-hidden border-2 border-gold-600 bg-ink-900 shadow-[4px_4px_0_rgba(0,0,0,.65)] ${gavelVisible ? 'animate-shake' : ''}`}
       style={{ width: fitW || '100%', aspectRatio: `${W}/${H}` }}>
       <RoomBackground decedentName={caseData?.decedent_name} />
+
+      {/* 辩席聚光：唯一的大幅舞台动效，始终指向当前发言人的落脚点。 */}
+      <AnimatePresence>
+        {speakerId && scale > 0 && (
+          <>
+            <motion.div
+              key="speaker-cone"
+              aria-hidden
+              className="pointer-events-none absolute z-[4]"
+              style={{
+                left: (PODIUM_ANCHOR.x - 170) * scale,
+                top: 28 * scale,
+                width: 340 * scale,
+                height: (PODIUM_ANCHOR.y + 52) * scale,
+                clipPath: 'polygon(43% 0, 57% 0, 88% 100%, 12% 100%)',
+                background: 'linear-gradient(180deg, rgba(243,211,138,.23), rgba(226,178,90,.035) 72%, transparent)',
+                mixBlendMode: 'screen',
+              }}
+              initial={{ opacity: 0, scaleX: 0.82 }}
+              animate={{ opacity: 1, scaleX: 1 }}
+              exit={{ opacity: 0, scaleX: 0.9 }}
+              transition={{ duration: 0.22 }}
+            />
+            <motion.div
+              key="speaker-pool"
+              aria-hidden
+              className="pointer-events-none absolute z-[5] border-2 border-gold-400/35"
+              style={{
+                left: (PODIUM_ANCHOR.x - 105) * scale,
+                top: (PODIUM_ANCHOR.y - 22) * scale,
+                width: 210 * scale,
+                height: 48 * scale,
+                borderRadius: '50%',
+                background: 'radial-gradient(ellipse, rgba(243,211,138,.2), rgba(226,178,90,.04) 58%, transparent 72%)',
+              }}
+              initial={{ opacity: 0, scale: 0.72 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.22 }}
+            />
+          </>
+        )}
+      </AnimatePresence>
 
       {/* agents layer */}
       {scale > 0 && (
@@ -205,7 +248,7 @@ export default function CourtroomScene() {
             <div className="absolute inset-0 bg-black/35" />
             <motion.div initial={{ scale: 0.86, y: 16 }} animate={{ scale: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 240, damping: 22 }}
-              className="relative flex items-center gap-4 rounded-2xl border border-gold-400/25 bg-black/60 px-8 py-4 shadow-[0_24px_80px_-24px_rgba(0,0,0,.9)] backdrop-blur-md">
+              className="relative flex items-center gap-4 border-2 border-gold-600 bg-ink-950/90 px-8 py-4 shadow-[4px_4px_0_rgba(0,0,0,.65)]">
               <span className="h-px w-12 bg-gradient-to-r from-transparent to-gold-400/80" />
               <span className="gold-text font-serif text-2xl font-black tracking-[0.3em]">{splash.label}</span>
               <span className="h-px w-12 bg-gradient-to-l from-transparent to-gold-400/80" />
@@ -216,7 +259,7 @@ export default function CourtroomScene() {
 
       {/* stage status：左上直播 + 阶段，右上当前发言人 */}
       <div className="pointer-events-none absolute inset-x-3 top-3 z-[810] flex items-start justify-between gap-2" style={{ fontSize: Math.max(10, 12 * scale) }}>
-        <div className="flex items-center gap-2 rounded-full border border-white/8 bg-black/55 px-2.5 py-1 text-gold-300 backdrop-blur">
+        <div className="flex items-center gap-2 border-2 border-ink-600 bg-ink-950/85 px-2.5 py-1 text-gold-300 shadow-[2px_2px_0_rgba(0,0,0,.55)]">
           <AnimatedPxlKitIcon icon={PulsingDot} size={12} appearance="tinted" color="#f87171" aria-label="直播中" />
           <span className="font-mono text-[0.8em] font-bold tracking-[0.18em] text-red-300">LIVE</span>
           <span className="h-3 w-px bg-white/15" />
@@ -226,7 +269,7 @@ export default function CourtroomScene() {
           {activeAgent && (
             <motion.div key={activeAgent.id + activeStatus} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
-              className="flex max-w-[52%] items-center gap-2 truncate rounded-full border bg-black/55 px-2.5 py-1 text-ink-200 backdrop-blur"
+              className="flex max-w-[52%] items-center gap-2 truncate border-2 bg-ink-950/85 px-2.5 py-1 text-ink-200 shadow-[2px_2px_0_rgba(0,0,0,.55)]"
               style={{ borderColor: `${activeAgent.color}55` }}>
               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: activeAgent.color, boxShadow: `0 0 8px ${activeAgent.color}` }} />
               <span className="truncate"><b style={{ color: activeAgent.color }}>{activeAgent.name}</b>{activeStatus === 'speaking' ? ' 正在发言' : ' 正在组织观点'}</span>
@@ -240,7 +283,7 @@ export default function CourtroomScene() {
         {recentGhost && (
           <motion.div key={recentGhost.ts} initial={{ opacity: 0, y: 20, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -30 }} className="absolute top-14 left-1/2 z-[860] max-w-[46%] -translate-x-1/2">
-            <div className="animate-float rounded-2xl border border-violet-300/30 bg-violet-950/70 px-4 py-2 text-sm text-violet-100 shadow-[0_0_40px_rgba(167,139,250,.35)] backdrop-blur">
+            <div className="animate-float border-2 border-violet-300/30 bg-violet-950/85 px-4 py-2 text-sm text-violet-100 shadow-[3px_3px_0_rgba(0,0,0,.55),0_0_40px_rgba(167,139,250,.28)]">
               <span className="mr-2 text-base">👻</span>
               <span className="text-violet-300/80">{caseData?.decedent_name} 的幽灵：</span>
               {recentGhost.text}
@@ -306,11 +349,18 @@ function Agent({ agent, pos, scale, size, status, reaction, petKind, showPlate, 
       animate={{ x, y, width: px, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 120, damping: 18, mass: 0.9, delay: seated ? 0 : 0.4 + index * 0.09 }}>
       <div className="relative" style={{ width: px, height: px * 1.25 }}>
-        {(status === 'speaking' || status === 'thinking') && (
+        {status === 'speaking' && (
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2" style={{ width: px * 0.8, height: px * 0.22 }}>
             <div className="animate-pulse-ring absolute inset-0 rounded-full border-2" style={{ borderColor: agent.color }} />
             <div className="absolute inset-0 rounded-full border" style={{ borderColor: agent.color, opacity: 0.6 }} />
           </div>
+        )}
+        {status === 'thinking' && (
+          <div
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full border-2 border-dashed"
+            style={{ width: px * 0.68, height: px * 0.18, borderColor: `${agent.color}99` }}
+            aria-hidden
+          />
         )}
         <CharacterPortrait agent={agent} status={status} size={px} petKind={petKind} />
         <AnimatePresence>
@@ -335,10 +385,10 @@ function Agent({ agent, pos, scale, size, status, reaction, petKind, showPlate, 
       {showPlate && (
         <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center whitespace-nowrap"
           style={{ top: px * 1.25 + 4 * scale, fontSize: Math.max(10, 12.5 * scale) }}>
-          <span className="rounded-md px-1.5 py-0.5 font-semibold text-ink-100" style={{ background: 'rgba(0,0,0,.55)', border: `1px solid ${agent.color}55` }}>
+          <span className="border px-1.5 py-0.5 font-semibold text-ink-100" style={{ background: 'rgba(23,18,15,.88)', borderColor: `${agent.color}66` }}>
             {agent.name}
           </span>
-          <span className="mt-0.5 rounded px-1 text-[0.85em]" style={{ color: agent.color, background: 'rgba(0,0,0,.4)' }}>
+          <span className="mt-0.5 px-1 text-[0.85em]" style={{ color: agent.color, background: 'rgba(23,18,15,.75)' }}>
             {agent.personality_label}{agent.role}
             {agent.eligible ? ` · ${agent.legal_percent.toFixed(0)}%` : ''}
           </span>

@@ -6,19 +6,18 @@ import { Package, Robot, Upload } from '@pxlkit/ui'
 import { PixelAlert, PixelChip, PixelChipGroup, PixelProgress, PixelSegmented, PixelStepper, PixelTypewriter } from '@pxlkit/ui-kit'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, ArrowRight, BookOpen, ClipboardPaste, FileText, RotateCcw, Target, Wand2 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, type CaseParseResult, type ServerConfig } from '../api/client'
 import ModelSelect from '../components/ModelSelect'
 import ProviderManager from '../components/ProviderManager'
+import SafeVoxelStage from '../components/scene3d/SafeVoxelStage'
 import { ShareBar } from '../components/ui/CourtRecord'
 import TopBar from '../components/ui/TopBar'
 import { ASSET_EMOJI, PERSONALITY_MAP, RELATION_LABEL } from '../data/presets'
 import { describeRef, useProviders } from '../hooks/useProviders'
 import { isSeatable, useCaseDraft } from '../store/useCaseDraft'
 import type { Member, ModelRef } from '../types'
-
-const VoxelStage = lazy(() => import('../components/scene3d/VoxelStage'))
 
 const MAX_FILE_BYTES = 300 * 1024
 const MAX_CONTENT_CHARS = 100_000
@@ -184,9 +183,14 @@ export default function ImportPage() {
             className="panel-elevated relative mx-auto flex h-[168px] w-[168px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_55%,rgba(165,139,255,.2),transparent_62%)]">
             <div className="scanlines pointer-events-none absolute inset-0 z-10 opacity-60" />
             <div className="pixel-text absolute top-2 left-2.5 text-[12px] tracking-[0.12em] text-ghost-300">CODEX</div>
-            <Suspense fallback={<div className="pixel-text animate-blink-step text-[12px] text-ghost-300">LOADING…</div>}>
-              <VoxelStage icon={SpellBook} size={128} spin={0.5} bob={0.06} glow="rgba(165,139,255,.32)" />
-            </Suspense>
+            <SafeVoxelStage
+              icon={SpellBook}
+              size={128}
+              spin={0.5}
+              bob={0.06}
+              glow="rgba(165,139,255,.32)"
+              fallbackLabel="案情法典图腾"
+            />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.05 }} className="min-w-0">

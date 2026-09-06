@@ -2,183 +2,252 @@
 
 [![CI](https://github.com/hxquan-q/HeirArena/actions/workflows/ci.yml/badge.svg)](https://github.com/hxquan-q/HeirArena/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg)](backend/requirements.txt)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg)](frontend/package.json)
 
-> 把严肃的遗产分配，变成一场 AI 多 Agent 的「家庭剧 + 辩论竞技场」。
-> 你是立遗嘱的人：填好资产、家人和几句"剧情设定"，系统就会生成一群性格鲜明的 AI 继承人，
-> 让它们在虚拟听证庭上争吵、结盟、谈判——最后由中立的「遗嘱执行官」依据《民法典》继承编敲槌裁决。
+> **像素风 Web 剧本杀式多 Agent 案件利益沙盘。**
+> 选择身份与诉求，看 AI 角色在结盟、举证、谈判和庭审中争夺遗产；法律规则守住分配底线，Agent 负责把过程演成一场戏。
 
-![courtroom](docs/screenshot-courtroom.png)
+![HeirArena 最新像素大厅](docs/images/lobby.png)
 
-## 它是怎么玩的
+HeirArena 把遗产案件变成一个可以反复推演的互动沙盘：输入人物、资产和公开事实，多名继承人 Agent 会围绕各自诉求陈述、攻击、结盟、提案与让步，最后由遗嘱执行官依据规则引擎给出的法定基线完成裁决和具体资产分配。
 
-1. **建立卷宗**：从大厅进入「新案」或「导入案情」——手动输入资产、家人关系和剧情设定，选择内置剧本，或上传 / 粘贴 UTF-8 的 `.md / .markdown / .txt`（示例见 [`examples/sample-case.md`](examples/sample-case.md)），由所选模型抽取人物、关系、资产与诉求，再于设置页确认后开庭。
-2. **规则引擎先算法定份额**：依据《民法典》第 1122、1125、1127、1128、1129、1130、1131、1132、1144、1153、1156 条，确定性地算出每个人的参考份额与法条依据（夫妻共同财产先析产、代位继承、继子女扶养关系、丧偶儿媳视为第一顺序、多分 / 少分、被扶养人酌分……）。这是整场辩论不可逾越的"锚"。
-3. **开庭**：遗嘱执行官宣读案情 → 每位 Agent 开场陈述 → **执行官归纳 2~4 个争议焦点**（焦点驱动辩论，逐轮围绕推进；模型不可用时回退到内置焦点池）→ 若干轮辩论（攻击 / 结盟 / 提案 / 让步）→ 协商 → 落槌裁决。随时可以「休庭 / 续庭」：LangGraph 检查点在发言人粒度落盘，恢复后从中断处继续。
-4. **幽灵插话**：庭审进行中，你可以随时以"逝者的幽灵"身份插一句话，下一位发言的 Agent 会当场做出反应。
-5. **裁决**：执行官只能依据当庭成立的符号化法律事实，在用户选择的酌情范围内（设置页可选 0 严格 / 5 参考 / 10 / 15 戏剧）调整份额，再把不可分割的房、车、宠物、纪念物给最在乎它的人，用存款找平、不够就折价补偿（第 1156 条）。裁决输出升级为**三段式判决书**（经审理查明 → 本院认为[大前提法条 + 小前提事实] → 判决如下逐条主文）、**当庭成立事实清单**（每条可点击回查来源发言）、**各方论点漏接分析**（谁最有说服力、谁没接住对方的话）、以及**和解三档方案**（A 让步最大 / B 折中 / C 底线——遗产纠纷本就以调解结案为常态）；模型不可用时全部由规则引擎兜底生成。饼图、逐项资产归属、补偿关系、调整理由与法条依据照旧，可导出 Markdown 庭审记录。
+当前版本有两种开庭模式：默认**导演 / 逝者幽灵**旁观全员；也可以切入**入局推演**，选定“我是案件中的谁”，写下诉求，让军师为全员写策略简报，再由 AI 代理或亲自发言把这场沙盘打完。执行官对席位盲判，份额仍只随当庭事实变动，军师建议不构成法律意见。
 
-## 视觉
+## 最新实机画面
 
-- **像素风大厅与 UI**（PxlKit + Fusion Pixel 字体）：路由切换带幕布转场； drama 计量、庭审记录与顶栏状态统一成「可玩的 Agent 游戏」界面。
-- **3D voxel 法庭**（React Three Fiber）：角色立绘与席位动画；2D 法庭场景仍保留关系连线、落槌与特效。
-- 角色立绘覆盖常见人设与变体（贪婪 / 孝顺 / 律师 / 宠物 / 前任 / 系统分身等），见 `assets/`。
-- 状态动画：思考气泡、发言声波、生气冒烟、开心闪光；发言者走上证人台、聚光灯亮起；攻击画红色虚线、结盟画绿色实线；落槌时全屏震动 + "咚！"。
-- 右侧面板：家族关系图（含 ✝ 先亡、代位、婚姻 / 已离婚、无继承权标注）、法定份额与法条全文、实时庭审记录、最终裁决。
+| 建立案件与调节庭审 | 多 Agent 庭审进行中 |
+| :---: | :---: |
+| ![最新案件设置](docs/images/case-setup.png) | ![最新庭审现场](docs/images/courtroom.png) |
 
-## 技术栈
+| 时间线、证据、显灵技能、终局预测与裁决 |
+| :---: |
+| ![最新裁决结果](docs/images/verdict.png) |
 
-| 层 | 技术 |
-| --- | --- |
-| 前端 | Vite 8 · React 19 · TypeScript · Tailwind CSS 4 · Motion · Zustand · Recharts · React Router |
-| 后端 | Python 3.10+ · FastAPI · SSE 实时流 · SQLite + SQLModel · httpx（OpenAI 兼容流式接口） |
-| 编排 | [LangGraph](https://github.com/langchain-ai/langgraph) 状态机：开庭 → 陈述 → 辩论 → 协商 → 裁决；SqliteSaver Checkpointer 支持中断 / 重启后续庭 |
-| Agent | [LangChain](https://github.com/langchain-ai/langchain) `create_agent()` 创建各角色及执行官；工具读取案情、发言记录、法定份额 |
-| 法律 | 《民法典》继承编规则引擎（含单元测试） · 有限自主裁量的裁决器 · 资产分配 / 折价补偿算法 |
+## 它为什么不只是聊天机器人
 
-## 接入模型：供应商 → 角色
+- **身份驱动**：每个 Agent 都有家庭关系、性格、资产偏好、公开立场和诉求。
+- **焦点驱动**：执行官从案情归纳争议焦点，辩论逐轮围绕焦点推进。
+- **证据卡牌**：资产、卷宗事实和当庭证言会变成带热度、法条与来源回合的卡牌。
+- **幽灵技能**：显灵能量按阶段恢复；五种技能会组合当前案情、发言和所选证据生成干预。
+- **局势预测**：实时把各方最新资产主张折算成价值份额，显示争夺热度和焦点进度。
+- **阵营与时间线**：保留全场攻击、结盟、阶段、幽灵和裁决事件，形成可回看的案件过程。
+- **规则兜底**：Python 规则引擎先计算法定份额，模型不能随口编一个百分比。
+- **结果落地**：系统不只画份额饼图，还会分配房产、车辆、存款、宠物并计算折价补偿。
+- **没有模型也能玩**：未配置供应商时进入内置剧本模式；单次模型失败只让该回合降级。
 
-1. 首页右上角 **「模型供应商」**：从预设（DeepSeek、通义千问、Moonshot Kimi、智谱 GLM、火山方舟、硅基流动、OpenAI、OpenRouter、Ollama、LM Studio、自定义）选一个，填 Base URL 和 API Key，保存。可以「测试连通」（发一次 8 token 的补全）和「拉取模型」（GET `/models`）。配置写在本机 `backend/data/providers.json`，Key 不会回传到浏览器。
-2. 在案件里分配模型：
-   - **默认辩论模型**：所有角色的兜底；
-   - **遗嘱执行官**：单独指定裁决用的模型（建议用更强的模型，它要输出结构化 JSON）；
-   - **每个角色**：展开角色卡片 → 「指定该角色发声模型」。可以让贪婪儿子用 DeepSeek、孝顺女儿用通义、橘猫走剧本，同一场混用。
-3. 开庭后，席位卡和顶栏会标出每个角色实际使用的模型。
+## 五步推演
 
-**角色是怎么"读"和"说"的**：每个角色和遗嘱执行官都是一个 LangChain `create_agent()`。发言前 Agent 通过工具读取案情、最近发言记录和规则引擎算出的法定份额，再以第一人称输出 80~150 字，并在结尾用 `---` + 一行 JSON 给出动作（攻击 / 结盟 / 提案 / 让步 / 恳求）、目标和诉求。工具或供应商调用失败时，自动回退到原来的 OpenAI 兼容直连，再失败则走剧本模式。庭审阶段由 LangGraph 推进，每一步写入 Checkpointer；服务重启后按 `thread_id`（会话 id）续庭，SSE 仍可用 `?from_seq=` 回放已落库的事件。
+```mermaid
+flowchart LR
+    A["1 建案<br/>选择剧本或导入文本"] --> B["2 入局<br/>旁观全员 / 入局推演"]
+    B --> C["3 博弈<br/>证据、显灵或席位发言"]
+    C --> D["4 裁决<br/>法律基线 + 受限裁量 + 资产分配"]
+    D --> E["5 复盘<br/>记分卡、叙事与导出"]
+```
 
-**Markdown 案情导入**：设置页可上传或粘贴不超过 300 KB / 10 万字符的 UTF-8 文本，并选择任意已配置的 OpenAI 兼容模型。后端要求模型输出独立的抽取 Schema，再确定性生成安全 ID 并转换为 `CaseInput`；未知枚举会触发一次自动修复，连续失败则拒绝回填。金额统一换算为万元；`main_support / neglect / dependency / deceased` 等影响法律计算的布尔事实，以及夫妻共同财产标记，必须带能在上传原文中反查的短引用，否则会被保守关闭并加入人工确认警告。上传文本被当作不可信数据，文档中的提示注入指令不会作为系统指令执行。解析后仍需用户在现有表单中确认，系统不会直接开庭。
+1. **建案**：使用内置剧本，手动编辑卷宗，或导入 UTF-8 的 Markdown / 纯文本案情。
+2. **入局**：默认旁观全员；也可在第 IV 卷选席位、写诉求、推演策略后以当事人身份开庭。
+3. **博弈**：旁观时查看时间线、证据宝箱、阵营网络和终局预测，用显灵技能影响下一位 Agent；入局时关闭显灵，轮到你可亲自发言或改由 AI 代说。
+4. **裁决**：规则引擎计算基线，执行官只可依据成立且可追溯的事实，在设定幅度内调整。
+5. **复盘**：查看判决书、成立事实、未决问题、论点分析、和解方案、资产归属和押注结果；入局场次另有记分卡与下一局建议。
+6. **入局推演**：选定席位 → 写结构化诉求与自由文本 → 军师生成全员简报与策略矩阵 → AI 代打或亲自发言（发言卡辅助，自认只能手动勾选）→ 闭庭后看记分卡、叙事复盘并导出「入局推演报告」。执行官对席位盲判、份额仍只随当庭事实变动、军师建议不构成法律意见。
 
-**裁决——随机关在演出层，方向由法律事实钉死**：角色怎么吵、谁跟谁结盟、幽灵插话会不会改变态度，每场都可以不同；但份额只随**当庭成立的法律事实**变动。角色发言的 JSON 里只能输出三种符号化事实（DualPath 思路：LLM 给符号，规则引擎定数值）：
+## 三层结果
 
-| 符号 | 含义 | 法条 | 成立条件 |
-| --- | --- | --- | --- |
-| `admit_neglect` | 本人承认有能力却未尽扶养义务 | 1130 | 本人说了才算 |
-| `waive_share` | 本人明确放弃部分份额 | 1132 | 本人说了才算 |
-| `acknowledge_support:<id>` | 承认某人尽了主要扶养义务 | 1130 | 需两位以上**其他**出席者确认 |
+| 层 | 回答的问题 | 当前状态 |
+| --- | --- | --- |
+| **法律层** | 谁有资格继承、法定份额是多少、哪些事实可调整、资产如何落位？ | 已实现 |
+| **策略层** | 哪些主张、证据、结盟或让步有效，我怎样更接近自己的诉求？ | 入局推演已提供可达区间、what-if、全员简报、博弈表、记分卡与复盘；旁观模式仍用证据卡、主张预测、阵营网络和押注 |
+| **剧情层** | 谁和谁结盟、关系如何变化、这场家庭剧怎样收尾？ | 已有关系事件、角色反应、戏剧值、时间线和裁决叙事 |
 
-攻击、结盟、口才、被骂得多，一律只进 `drama_score`，不进份额；未被承认的指控进入裁决的「需要进一步确认的问题」。执行官模型拿到的是规则引擎依据这些事实算好的份额建议，它只能在案件设定的酌情范围内（默认 ±5 个百分点，可选 0 严格 / 15 戏剧）微调**有事实的成员**，每条调整必须引用对应发言的 `turn_ids`，否则被丢弃；发言里出现但不在剧情设定和案情记录里的"事实"（"爸口头答应把房子给我"）视为主张。裁决面板上"法定"与"酌情"分列，每条事实和调整都能反查到具体发言。模型不可用或输出不合法时，自动回退到纯规则裁决。
+更多说明：[产品设计](docs/product.md) · [技术架构](docs/architecture.md) · [可编辑图表](docs/diagrams.md) · [入局推演设计说明](docs/入局推演-设计说明.md)
 
-未接入任何供应商时进入 **剧本模式**（内置台词库），开箱即可演示；某个角色的模型调用失败也只会让这一句回退到剧本，庭审不会中断。
-
-> 也可以在 `backend/.env` 里填 `LLM_API_KEY / LLM_BASE_URL / LLM_MODEL`，它会作为一个「xxx（.env）」供应商出现，并成为未指定时的默认。
->
-> **代理提示**：对 `localhost / 127.0.0.1` 的供应商（Ollama、LM Studio、codex-bridge）后端会自动绕过系统代理；Windows 上开着 Clash 等系统代理时这一点很重要。
+“入局推演”从席位模型、军师简报到玩家亲自发言与确定性记分卡的实施拆分，见 [`task/README.md`](task/README.md)。
 
 ## 快速开始
 
+### Windows
+
 ```powershell
-# Windows
 .\start.ps1
 ```
 
+### macOS / Linux
+
 ```bash
-# macOS / Linux
-chmod +x start.sh && ./start.sh
+chmod +x start.sh
+./start.sh
 ```
 
-或手动启动：
+启动后访问：
+
+- 游戏界面：<http://localhost:5173>
+- FastAPI 文档：<http://127.0.0.1:8000/docs>
+
+手动启动：
 
 ```bash
-# 后端（http://127.0.0.1:8000，接口文档 /docs）
+# 后端
 cd backend
-python -m venv .venv && .venv/Scripts/activate   # macOS/Linux: source .venv/bin/activate
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS / Linux: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env                              # 可选：填入 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
 uvicorn app.main:app --reload --port 8000
 
-# 前端（http://localhost:5173，已代理 /api 到后端）
+# 前端（另一个终端）
 cd frontend
 npm install
 npm run dev
 ```
 
-## 目录结构
+无需 API Key 即可使用**剧本模式**体验完整流程。若要让 Agent 实时生成发言，可复制 `backend/.env.example` 为 `backend/.env`，或在游戏大厅打开“模型供应商”配置。
 
+## 导入自己的案件
+
+导入页接受不超过 300 KB / 10 万字符的 UTF-8 `.md`、`.markdown` 和 `.txt` 文本；可参考 [`examples/sample-case.md`](examples/sample-case.md)。
+
+解析需要一个可用模型。模型先输出抽取结构，后端再校验人物、关系、金额、枚举值和影响法律计算的原文引用。结果只会形成待确认草稿，不会直接开庭。
+
+> 建议只使用虚构、匿名化或充分脱敏的材料。导入文本和庭审上下文可能发送到你选择的模型供应商。
+
+## 模型供应商与角色路由
+
+支持 DeepSeek、通义千问、Moonshot Kimi、智谱 GLM、火山方舟、硅基流动、OpenAI、OpenRouter、Ollama、LM Studio、自定义 OpenAI 兼容端点，以及可选的本地 Codex Bridge。
+
+同一场庭审可以分别设置：
+
+1. 全体角色默认模型；
+2. 遗嘱执行官专用模型；
+3. 单个案件角色模型；
+4. **军师**（`seat.advisor_model`）：只在入局推演里使用，默认跟随执行官。负责矩阵要点、全员简报、发言卡、软目标评分和叙事复盘。未接入时降级为规则版简报，仍可开庭和打字发言。
+
+不同角色可以混用不同供应商，也可以让部分角色使用剧本模式。供应商配置保存在本机 `backend/data/providers.json`，列表接口不会把完整 Key 返回浏览器。旁观模式下军师槽位提示「仅入局模式使用」。
+
+## 法律与 Agent 如何协作
+
+```mermaid
+flowchart LR
+    Case["确认后的案情"] --> Legal["规则引擎<br/>法定份额基线"]
+    Speech["Agent 发言"] --> Facts["符号化事实<br/>自认、让步、扶养确认"]
+    Facts --> Verify["身份、人数、turn_id 校验"]
+    Legal --> Bound["受限裁量<br/>0 / ±5 / ±10 / ±15 个百分点"]
+    Verify --> Bound
+    Bound --> Allocate["资产分配与折价补偿"]
+    Drama["攻击、结盟、情绪"] -.-> Show["演出、证据热度与策略统计"]
 ```
-backend/
-  app/
-    main.py               # FastAPI：创建会话 / SSE 流 / 幽灵插话 / 暂停续庭 / 导出
-    case_parser.py        # Markdown 案情：模型抽取、原文证据校验、CaseInput 规范化
-    persist.py            # SQLModel：案件、角色模型绑定、庭审事件、发言、裁决
-    models.py             # 案件、资产、成员、法定份额等数据模型
-    legal/
-      articles.py         # 民法典继承编条文（节选）
-      engine.py           # 法定继承规则引擎
-    providers.py          # 供应商注册表（预设、持久化、.env 合并）
-    agents/
-      personas.py         # 角色人设与提示词片段
-      mock.py             # 剧本模式台词库
-      llm.py              # OpenAI 兼容流式客户端（连通测试 / 拉取模型 / 本机地址绕过代理）
-      tools.py            # create_agent 工具：案情 / 发言记录 / 法定份额
-      role_agents.py      # LangChain create_agent() 工厂
-      court_graph.py      # LangGraph 庭审状态机 + Checkpointer
-      allocator.py        # 份额 → 具体资产归属 + 折价补偿
-      orchestrator.py     # 发言、裁决与图节点实现；SSE 事件仍从这里发出
-      restore.py          # 从 SQLite 重建会话，供重启后续庭
-  data/                   # providers.json、heirarena.db、checkpoints.db（已 gitignore）
-  tests/                  # 规则引擎、分配器、编排器、持久化 / 续庭、流式解析、模型路由测试
-examples/
-  sample-case.md               # Markdown 案情导入示例
-frontend/
-  src/
-    pages/LobbyPage.tsx        # 游戏大厅：新案 / 导入 / 供应商
-    pages/ImportPage.tsx       # Markdown 案情导入与解析回填
-    pages/SetupPage.tsx        # 立遗嘱向导（法定份额实时预览、模型分配）
-    pages/CourtroomPage.tsx    # 法庭页：3D 场景 + 阶段进度 + 面板 + 幽灵插话
-    components/scene3d/        # Voxel 法庭与角色图标
-    components/scene/          # 2D 法庭、连线、落槌、特效
-    components/panels/         # 关系图 / 法定份额 / 庭审记录 / 裁决
-    components/ui/             # 像素风共用组件（顶栏、记录条等）
-    store/useCourt.ts          # SSE 事件 → 状态
-    store/useCaseDraft.ts      # 导入草稿与设置页共享
-    data/presets.ts            # 一键剧本与选项
-docs/                          # 架构说明（中文）
-codex-bridge/                  # 可选：本机 Codex OpenAI 兼容桥（见下文）
+
+当前可进入份额调整路径的符号化事实：
+
+- `admit_neglect`：本人承认有能力却未尽扶养义务；
+- `waive_share`：本人明确放弃部分份额；
+- `acknowledge_support:<id>`：确认另一成员尽了主要扶养义务，并满足多人确认规则。
+
+普通指控、口才、攻击、结盟、押注和戏剧值不会直接改变份额。执行官模型输出还要经过事实白名单、发言引用和数学边界校验；失败时回退到纯规则裁决。
+
+## 技术栈
+
+| 层 | 技术 |
+| --- | --- |
+| 前端 | Vite 8 · React 19 · TypeScript · Tailwind CSS 4 · Motion · Zustand · React Router |
+| 游戏表现 | PxlKit · Fusion Pixel · React Three Fiber · Three.js · Recharts |
+| 后端 | Python 3.10+ · FastAPI · SSE · SQLModel · SQLite · httpx |
+| Agent | LangChain `create_agent()` · 多供应商 OpenAI 兼容模型路由 · 内置剧本回退 |
+| 编排 | LangGraph 状态机 · SQLite Checkpointer · 节点级休庭 / 续庭 |
+| 规则 | 《民法典》继承编有限规则引擎 · 受限裁量 · 资产分配与折价补偿 |
+
+## 项目结构
+
+```text
+HeirArena/
+├─ backend/
+│  ├─ app/
+│  │  ├─ agents/          # 角色、工具、LangGraph、编排、裁决与恢复
+│  │  ├─ legal/           # 法条、确定性继承规则、举证清单 evidence.py
+│  │  ├─ seat/            # 入局：analysis / game / scoring / advisor / prompts / report
+│  │  ├─ main.py          # FastAPI、SSE 与会话生命周期
+│  │  ├─ case_parser.py   # 文本案情抽取与原文引用校验
+│  │  ├─ providers.py     # 模型供应商与路由
+│  │  └─ persist.py       # 案件、事件、发言与裁决持久化
+│  └─ tests/              # 含 test_seat_*.py
+├─ frontend/
+│  └─ src/
+│     ├─ pages/           # 大厅、导入、设置、庭审
+│     ├─ components/      # 像素场景、证据/阵营/预测面板、显灵行动栏
+│     ├─ components/seat/ # 第 IV 卷、简报、复盘、博弈表
+│     ├─ lib/             # 证据、主张预测、显灵技能与音效
+│     ├─ store/           # 案件草稿、SSE 庭审状态与玩家场次存档
+│     └─ api/             # REST 与 SSE 客户端
+├─ assets/                # 角色像素立绘
+├─ docs/                  # 产品、架构、图表与入局推演设计说明
+├─ task/                  # 入局推演实施任务拆分
+└─ examples/              # 可导入的示例案情
 ```
 
 ## API 速览
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/config` | 当前模式（llm / mock）、已就绪供应商数、.env 默认模型 |
-| GET | `/api/providers` | 供应商列表（Key 已遮蔽）与预设 |
-| POST / PUT / DELETE | `/api/providers[/{id}]` | 新建 / 更新（不传 Key 则保留）/ 删除供应商 |
-| POST | `/api/providers/{id}/test` | 连通测试（返回耗时与回复） |
-| POST | `/api/providers/{id}/models` | 从供应商拉取模型列表并合并保存 |
-| POST | `/api/cases/parse` | 用指定模型解析 Markdown / 纯文本，返回经校验的 `CaseInput` 草稿、法定份额预览与警告 |
-| POST | `/api/legal/preview` | 仅计算法定份额（设置页实时预览） |
-| POST | `/api/sessions` | 创建会话并立即开庭（含 `default_model` / `executor_model` / 每个成员的 `model` / `discretion` 酌情范围） |
-| GET | `/api/sessions/{id}/stream` | SSE 事件流（支持 `?from_seq=` 断线续播） |
-| POST | `/api/sessions/{id}/interject` | 幽灵插话 |
-| POST | `/api/sessions/{id}/pause` | 下一节点中断，等待续庭 |
-| POST | `/api/sessions/{id}/resume` | `Command(resume=…)` 从 Checkpointer 续庭 |
-| GET | `/api/sessions/{id}/export` | 导出 Markdown 庭审记录 |
+| `GET` | `/api/config` | 当前模式与默认模型状态 |
+| `GET/POST/PUT/DELETE` | `/api/providers[/{id}]` | 模型供应商管理 |
+| `POST` | `/api/cases/parse` | Markdown / 纯文本案情解析 |
+| `POST` | `/api/legal/preview` | 计算法定份额预览 |
+| `POST` | `/api/seat/analyze` | 入局分析：可达区间、what-if、推断诉求、博弈表 |
+| `POST` | `/api/seat/strategy` | 推演全员简报与策略矩阵（无军师时规则版降级） |
+| `POST` | `/api/sessions` | 创建并启动庭审 |
+| `GET` | `/api/sessions/{id}/stream` | SSE 事件流和断线补播 |
+| `PUT` | `/api/sessions/{id}/seat` | 切换「本席由我发言」 |
+| `POST` | `/api/sessions/{id}/speak` | 玩家发言或改由 AI 代说 |
+| `POST` | `/api/sessions/{id}/cards` | 重新起草发言卡 |
+| `POST` | `/api/sessions/{id}/interject` | 幽灵低语与技能干预；**入局会话返回 409** |
+| `POST` | `/api/sessions/{id}/pause` | 节点边界休庭；等待玩家时返回 409 |
+| `POST` | `/api/sessions/{id}/resume` | 从检查点续庭 |
+| `GET` | `/api/sessions/{id}/export` | 导出 Markdown；入局场次追加「入局推演报告」 |
 
-SSE 事件：`session_start` `phase` `focus` `agent_status` `speech_start` `speech_delta` `speech_end` `relation` `reaction` `ghost` `notice` `gavel` `verdict` `done` `error`。
+SSE 事件（`frontend/src/api/client.ts` 的 `SSE_EVENTS`，共 19 个）：`session_start` `phase` `focus` `agent_status` `speech_start` `speech_delta` `speech_end` `relation` `reaction` `ghost` `notice` `gavel` `verdict` `done` `error` `seat` `awaiting_player` `cards` `debrief`。后四个只在入局会话出现。
 
-## 可选：用本机 Codex 账号当供应商
+## 路线图
 
-`codex-bridge/` 用 [`@openai/codex-sdk`](https://github.com/openai/codex/tree/main/sdk/typescript) 跑 Codex，并对外暴露 OpenAI 兼容的 `/v1/chat/completions`，于是 Codex 也能像别的供应商一样分配给任意角色：
-
-```bash
-cd codex-bridge && npm install && npm start      # http://127.0.0.1:8787/v1
-```
-
-然后在「模型供应商」里选预设 **Codex（本地桥接）**。桥接会在自己的 `.codex-home` 里生成极简配置，只复用 `~/.codex` 的登录凭据与模型供应商设置（不加载 MCP / 插件 / hooks），并内置一个清洗代理，兼容对 Responses 请求体做严格校验的第三方中转。
+- [x] 像素大厅、卷宗设置和内置案件
+- [x] Markdown / 纯文本案情导入
+- [x] 多供应商、多模型、按角色路由
+- [x] LangGraph 多 Agent 庭审和剧本回退
+- [x] 幽灵插话、休庭续庭和 SSE 断线补播
+- [x] 显灵能量、五种幽灵技能和证据出示
+- [x] 证据卡牌、案件时间线和阵营网络
+- [x] 资产争夺热度、终局预测和庭前押注
+- [x] 事实约束裁决、资产落位和和解方案
+- [x] 入局推演：选席、诉求、军师简报、亲自发言与记分卡
+- [ ] 庭上证据卡改变事实、多次推演、对手强度开关
+- [ ] 更多案件类型、社区剧本和多人参与
 
 ## 测试
 
 ```bash
-cd backend && .venv/Scripts/python -m pytest -q     # 规则引擎 + 编排图 + 持久化续庭
-cd frontend && npm run build                          # 类型检查 + 打包
+cd backend
+python -m pytest -q
+
+cd ../frontend
+npm test
+npm run build
 ```
 
-## 开源与协作
+后端入局相关：`test_seat_models` `test_seat_evidence` `test_seat_analysis` `test_seat_game` `test_seat_scoring` `test_seat_api` `test_seat_advisor` `test_seat_prompts` `test_seat_blind` `test_seat_runtime` `test_seat_turn` `test_seat_debrief` `test_seat_export`。前端席位用例在 `useCaseDraft.test.ts`、`useCourt.test.ts`。
 
-- 协议：[MIT](LICENSE)
-- 贡献指南：[CONTRIBUTING.md](CONTRIBUTING.md)
-- 问题与功能建议：请使用 [GitHub Issues](https://github.com/hxquan-q/HeirArena/issues)
+## 开源协作
+
+- [贡献指南](CONTRIBUTING.md)
+- [产品说明](docs/product.md)
+- [技术架构](docs/architecture.md)
+- [图表集](docs/diagrams.md)
+- [入局推演设计说明](docs/入局推演-设计说明.md)
+- [入局推演实施任务](task/README.md)
+- [示例案情](examples/sample-case.md)
+- [GitHub Issues](https://github.com/hxquan-q/HeirArena/issues)
+
+本项目采用 [MIT License](LICENSE)。
 
 ## 免责声明
 
-本项目给出的是依据《民法典》继承编计算的**参考方案**与一场娱乐化的多 Agent 模拟，不构成法律意见；真实纠纷请咨询律师或通过调解、诉讼解决。
+HeirArena 提供的是娱乐化多 Agent 模拟、教育展示和有限规则下的参考计算，**不构成法律意见，也不预测真实调解或诉讼结果**。入局推演给出的策略与记分卡是基于你输入事实的沙盘推演，不构成法律意见。真实继承纠纷应由具备资质的专业人士结合完整证据和现行法律处理。

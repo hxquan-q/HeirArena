@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.allocator import allocate, default_preferences, member_value, settle_compensations, value_shares  # noqa: E402
 from app.legal import compute_legal_shares  # noqa: E402
-from app.models import Goals, RedLine  # noqa: E402
+from app.models import Goals, RedLine, SoftGoal  # noqa: E402
 from app.seat.scoring import build_scorecard  # noqa: E402
 from tests.test_orchestrator_mock import sample_case  # noqa: E402
 
@@ -92,6 +92,41 @@ def test_missing_player_has_zero_value_share():
     card = build_scorecard(Goals(), _verdict({}, {}, {}, {}), "ghost")
     assert card.value_share == 0
     assert card.total == 0
+
+
+def test_soft_scores_only_accept_existing_goal_indexes():
+    empty = build_scorecard(Goals(), _verdict({}), "daughter", soft_scores={"999": 1.0})
+    empty_soft = next(part for part in empty.parts if part.key == "soft_goals")
+    assert empty_soft.applicable is False
+    assert empty.total == 0
+
+    goals = Goals(soft_goals=[SoftGoal(kind="recognition")])
+    mixed = build_scorecard(goals, _verdict({}), "daughter", soft_scores={"0": 0.5, "999": 1.0})
+    mixed_soft = next(part for part in mixed.parts if part.key == "soft_goals")
+    assert mixed_soft.applicable is True
+    assert mixed_soft.score == 5.0
+
+
+def test_partial_soft_and_custom_scores_keep_full_denominators():
+    goals = Goals(
+        soft_goals=[SoftGoal(kind="recognition"), SoftGoal(kind="custom", text="保持体面")],
+        red_lines=[
+            RedLine(kind="custom", text="不公开羞辱"),
+            RedLine(kind="custom", text="不出售纪念物"),
+        ],
+    )
+    card = build_scorecard(
+        goals,
+        _verdict({}),
+        "daughter",
+        soft_scores={"0": 1.0},
+        custom_red_lines={0: True},
+    )
+    parts = {part.key: part for part in card.parts}
+    assert parts["soft_goals"].score == 5.0
+    assert parts["red_lines"].score == 10.0
+    assert parts["red_lines"].detail == "守住 1/2"
+    assert card.capped is True
 
 
 def test_real_allocator_verdict_from_sample_case():

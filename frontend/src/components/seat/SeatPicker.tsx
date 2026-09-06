@@ -1,4 +1,4 @@
-import { PixelBadge, PixelEmptyState } from '@pxlkit/ui-kit'
+import { PixelBadge, PixelButton, PixelEmptyState } from '@pxlkit/ui-kit'
 import CharacterPortrait from '../scene/CharacterPortrait'
 import { PERSONALITIES, RELATION_LABEL } from '../../data/presets'
 import { memberAgent, petKindOf } from '../../lib/agentSpec'
@@ -35,14 +35,15 @@ export default function SeatPicker() {
         const heir = Boolean(share?.eligible && share.percent > 0)
         return (
           <li key={m.id} role="option" aria-selected={on} className="w-[140px] shrink-0 snap-start">
-            <button
+            <PixelButton
               type="button"
+              variant="ghost"
               onClick={() => {
                 sfx('confirm')
                 if (!c.seat) enterSeat(m.id)
                 else setPlayer(m.id)
               }}
-              className={`relative flex h-full w-full flex-col border-2 text-left transition ${on
+              className={`relative flex h-full w-full flex-col items-stretch border-2 p-0 text-left transition ${on
                 ? 'border-gold-400 bg-gold-600/10 shadow-[3px_3px_0_rgba(0,0,0,.6)]'
                 : 'border-ink-600 bg-ink-900 hover:border-ink-400'}`}
             >
@@ -74,7 +75,7 @@ export default function SeatPicker() {
                   )}
                 </div>
               </div>
-            </button>
+            </PixelButton>
           </li>
         )
       })}

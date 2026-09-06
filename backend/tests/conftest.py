@@ -1,11 +1,16 @@
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
 
+collect_ignore = ["tmp"]
+
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Use a repo-local temp dir so Windows runs avoid AppData permission errors."""
+    """Use a per-process system temp dir so Windows file locks from a
+    previous run cannot block pytest's session-start rmtree of a shared folder."""
     if config.option.basetemp is None:
-        base = Path(__file__).resolve().parents[1] / "tmp" / "pytest"
+        base = Path(tempfile.gettempdir()) / "heirarena-pytest" / f"run-{os.getpid()}"
         base.mkdir(parents=True, exist_ok=True)
         config.option.basetemp = str(base)

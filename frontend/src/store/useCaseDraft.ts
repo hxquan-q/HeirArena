@@ -50,14 +50,18 @@ function pruneGoals(goals: Record<string, Goals>, members: Member[], assets: Ass
   return next
 }
 
-export function pruneSeat(c: CaseInput): CaseInput {
+export function pruneSeat(c: CaseInput, dropStrategy = true): CaseInput {
   const seat = c.seat
   if (!seat) return { ...c, seat: null }
   const player = c.members.find((m) => m.id === seat.player_id)
   if (!player || !isSeatable(player)) return { ...c, seat: null }
   return {
     ...c,
-    seat: { ...seat, goals: pruneGoals(seat.goals, c.members, c.assets), strategy: null },
+    seat: {
+      ...seat,
+      goals: pruneGoals(seat.goals, c.members, c.assets),
+      strategy: dropStrategy ? null : seat.strategy,
+    },
   }
 }
 
@@ -166,10 +170,9 @@ export const useCaseDraft = create<DraftState>()(
       })),
       updMember: (id, patch) => set((s) => {
         const members = s.c.members.map((m) => (m.id === id ? { ...m, ...patch } : m))
-        const relationChanged = patch.relation !== undefined && s.c.members.find((m) => m.id === id)?.relation !== patch.relation
         const next = { ...s.c, members }
         return {
-          c: relationChanged ? pruneSeat(next) : expireStrategy(next),
+          c: pruneSeat(next),
           strategyStale: s.strategyStale || Boolean(s.c.seat?.strategy),
         }
       }),
@@ -261,10 +264,15 @@ export const useCaseDraft = create<DraftState>()(
         const seat = s.c.seat
         if (!seat) return s
         const goals = { ...seat.goals }
+        let changed = false
         for (const [id, g] of Object.entries(inferred)) {
           if (goals[id]?.source === 'user') continue
-          goals[id] = { ...g, source: 'inferred' }
+          const next = { ...g, source: 'inferred' as const }
+          if (JSON.stringify(goals[id]) === JSON.stringify(next)) continue
+          goals[id] = next
+          changed = true
         }
+        if (!changed) return s
         return { c: { ...s.c, seat: { ...seat, goals } } }
       }),
       setSeatHuman: (human) => set((s) => {
@@ -309,7 +317,7 @@ export function cleanDraft(c: CaseInput): CaseInput {
     assets: c.assets.filter((a) => a.name.trim()).map((a) => ({ ...a, value: Number(a.value) || 0 })),
     members: c.members.filter((m) => m.name.trim()),
     seat: c.seat ?? null,
-  })
+  }, false)
   if (!pruned.seat) return pruned
   const goals: Record<string, Goals> = {}
   for (const [id, g] of Object.entries(pruned.seat.goals)) {

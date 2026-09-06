@@ -88,6 +88,7 @@ class Session:
     providers: ProviderStore | None = None
     paused: bool = False
     seat: SeatRuntime | None = None
+    speak_lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
 
     def emit(self, etype: str, payload: dict[str, Any]) -> None:
         evt = {"seq": len(self.events), "type": etype, "ts": round(time.time(), 3), **payload}
@@ -197,7 +198,8 @@ class Orchestrator:
 
     # ------------------------------------------------------------- speech core
     async def _speak(self, agent_id: str, phase: str, round_no: int, gen: AsyncIterator[str],
-                     expect_meta: bool, meta_override: dict | None = None) -> Turn:
+                     expect_meta: bool, meta_override: dict | None = None,
+                     *, allow_player_admissions: bool = False) -> Turn:
         turn = Turn(turn_id=uuid.uuid4().hex[:10], agent_id=agent_id, name=self.specs[agent_id].name,
                     phase=phase, round_no=round_no)
         self._status(agent_id, "speaking")
@@ -235,7 +237,9 @@ class Orchestrator:
             flush(pending)
 
         meta = meta_override or (extract_json(meta_buf) if meta_buf else None) or {}
-        turn.meta = self._normalize_meta(agent_id, meta)
+        turn.meta = self._normalize_meta(
+            agent_id, meta, allow_player_admissions=allow_player_admissions,
+        )
         self.s.transcript.append(turn)
         self.stats["turns"] += 1
         self.s.emit("speech_end", {"turn_id": turn.turn_id, "agent_id": agent_id, "text": turn.text, "meta": turn.meta,
@@ -292,7 +296,7 @@ class Orchestrator:
         steps = "\n".join(f"- {s}" for s in self.legal.steps)
         return f"【法定参考份额】\n{legal_lines}\n【计算说明】\n{steps}"
 
-    def _normalize_meta(self, agent_id: str, meta: dict) -> dict:
+    def _normalize_meta(self, agent_id: str, meta: dict, *, allow_player_admissions: bool = False) -> dict:
         action = str(meta.get("action") or "").lower()
         if action not in {"attack", "ally", "propose", "concede", "plead"}:
             action = "propose"
@@ -322,6 +326,8 @@ class Orchestrator:
                     who = sym[len(ADMISSION_PREFIX_OTHER):]
                     if who in self.specs and who != agent_id and who != EXECUTOR_ID:
                         admissions.append(f"{ADMISSION_PREFIX_OTHER}{who}")
+        if agent_id == self.player_id and not allow_player_admissions:
+            admissions = []
         admissions = list(dict.fromkeys(admissions))[:3]
         out = {"action": action, "target": target, "emoji": emoji, "claims": claims, "admissions": admissions}
         if meta.get("by") == "human":
@@ -955,10 +961,12 @@ class Orchestrator:
         return resume if isinstance(resume, dict) else {}
 
     async def _speak_player(self, m: Member, phase: str, round_no: int, payload: dict) -> None:
-        meta = self._normalize_meta(m.id, payload.get("meta") or {})
+        raw_meta = {**(payload.get("meta") or {}), "by": "human"}
+        meta = self._normalize_meta(m.id, raw_meta, allow_player_admissions=True)
         text = str(payload.get("text") or "")[:500]
         turn = await self._speak(
             m.id, phase, round_no, self._mock_stream(text), expect_meta=False, meta_override=meta,
+            allow_player_admissions=True,
         )
         await self._after_speech(turn)
         self.last_attacker.pop(m.id, None)
@@ -1122,7 +1130,7 @@ class Orchestrator:
     def _fact_based_plan(self) -> tuple[dict[str, float], list[dict], list[dict], list[str]]:
         """只根据庭审中成立的法律事实微调份额（DualPath：符号来自发言，数值由这里决定）。
 
-        成立的事实只有三类：本人当庭承认未尽扶养义务（1130）、本人明确让步/放弃（1132）、
+        成立的事实只有三类：本人当庭承认未尽扶养义务（1130）、本人明确放弃份额（1132）、
         某人尽了主要扶养义务被两位以上其他出席者承认（1130）。攻击、结盟、指控只进 drama_score。
         返回 (份额建议, adjustments, established_facts, open_questions)。
         """
@@ -1134,7 +1142,6 @@ class Orchestrator:
         attackers: dict[str, dict[str, str]] = {}     # target -> {speaker: turn_id}
         admitted_neglect: set[str] = set()
         waived: set[str] = set()
-        conceded: dict[str, str] = {}
 
         def add_reason(mid: str, text: str, article: str, turn_ids: list[str]) -> None:
             reasons.setdefault(mid, []).append((text, article, turn_ids))
@@ -1144,8 +1151,6 @@ class Orchestrator:
             action, target = meta.get("action"), meta.get("target")
             if target in base and action == "attack" and t.agent_id != target:
                 attackers.setdefault(target, {})[t.agent_id] = t.turn_id
-            if t.agent_id in base and action == "concede" and t.phase == "negotiation" and t.agent_id not in conceded:
-                conceded[t.agent_id] = t.turn_id
             for sym in meta.get("admissions") or []:
                 if sym == "admit_neglect" and t.agent_id in base and t.agent_id not in admitted_neglect:
                     admitted_neglect.add(t.agent_id)
@@ -1163,14 +1168,6 @@ class Orchestrator:
                     who = sym[len(ADMISSION_PREFIX_OTHER):]
                     if who in base and who != t.agent_id:
                         support_ack.setdefault(who, {})[t.agent_id] = t.turn_id
-
-        for mid, turn_id in conceded.items():
-            if mid in waived:
-                continue
-            proposed[mid] -= 1.5
-            add_reason(mid, "协商阶段主动让步", "1132", [turn_id])
-            facts.append({"member_id": mid, "kind": "concede", "article": "1132",
-                          "text": f"{self.specs[mid].name} 在协商阶段主动让步。", "turn_ids": [turn_id]})
 
         for mid, ack in support_ack.items():
             if len(ack) >= 2:
@@ -1492,7 +1489,10 @@ class Orchestrator:
                     self.case,
                     self.legal,
                     self.s.verdict,
-                    self._transcript_block(40),
+                    "\n".join(
+                        f"[t:{turn.turn_id}] {turn.name}（{turn.phase}）：{turn.text.strip()[:220]}"
+                        for turn in self.s.transcript[-40:]
+                    ),
                     goals,
                     self._brief_enabled_items(player_id or ""),
                     player_id or "",
@@ -1506,25 +1506,44 @@ class Orchestrator:
                 self.s.emit("notice", {"level": "warn", "text": f"军师复盘失败：{error}"})
 
         scorecards = {}
+        valid_turn_ids = {turn.turn_id for turn in self.s.transcript}
         for member_id, member_goals in goals.items():
             soft = None
             custom = None
+            rationales: list[dict] = []
             if parsed is not None:
-                raw_soft = parsed.soft_scores.get(member_id) or {}
-                if raw_soft:
+                soft_map = getattr(parsed, "soft_scores", {}) or {}
+                custom_map = getattr(parsed, "custom_red_lines", {}) or {}
+                raw_soft = soft_map.get(member_id) or {}
+                if member_goals.soft_goals:
                     soft = {str(k): float(v) for k, v in raw_soft.items()}
-                raw_custom = parsed.custom_red_lines.get(member_id) or {}
-                if raw_custom:
+                raw_custom = custom_map.get(member_id) or {}
+                if any(red_line.kind == "custom" for red_line in member_goals.red_lines):
                     custom = {}
                     for key, value in raw_custom.items():
                         try:
                             custom[int(key)] = bool(value)
                         except (TypeError, ValueError):
                             continue
-                    if not custom:
-                        custom = None
+                rationale_map = getattr(parsed, "rationales", {}) or {}
+                for item in rationale_map.get(member_id) or []:
+                    if item.kind == "soft_goal":
+                        valid_index = item.index < len(member_goals.soft_goals)
+                    else:
+                        valid_index = (
+                            item.index < len(member_goals.red_lines)
+                            and member_goals.red_lines[item.index].kind == "custom"
+                        )
+                    if not valid_index:
+                        continue
+                    rationales.append({
+                        "kind": item.kind,
+                        "index": item.index,
+                        "reason": item.reason,
+                        "turn_ids": [tid for tid in item.turn_ids if tid in valid_turn_ids],
+                    })
             scorecards[member_id] = build_scorecard(
-                member_goals, self.s.verdict, member_id, soft, custom,
+                member_goals, self.s.verdict, member_id, soft, custom, rationales,
             )
 
         recap = whatif(self.case, player_id) if player_id else []

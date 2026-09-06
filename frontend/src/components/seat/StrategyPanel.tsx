@@ -1,4 +1,4 @@
-import { PixelAlert, PixelBadge, PixelProgress, PixelTypewriter } from '@pxlkit/ui-kit'
+import { PixelAlert, PixelBadge, PixelButton, PixelProgress, PixelTypewriter } from '@pxlkit/ui-kit'
 import { AnimatePresence, motion } from 'motion/react'
 import { api } from '../../api/client'
 import { cleanDraft, useCaseDraft } from '../../store/useCaseDraft'
@@ -36,9 +36,9 @@ export default function StrategyPanel({ onManageProviders }: Props) {
   return (
     <div className="relative space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="btn-gold h-9 px-4" disabled={strategizing} onClick={() => void run()}>
+        <PixelButton type="button" tone="gold" disabled={strategizing} onClick={() => void run()}>
           {strategy ? '重新推演' : '推演策略'}
-        </button>
+        </PixelButton>
         {strategy && (
           <>
             <PixelBadge tone={degraded ? 'gold' : 'green'} size="sm">
@@ -60,7 +60,7 @@ export default function StrategyPanel({ onManageProviders }: Props) {
           tone="gold"
           label="未接入军师模型"
           message="简报为规则版；剧本对手不会执行策略。确定性矩阵与风险提示仍可用。"
-          action={<button type="button" className="btn-gold h-8 px-3 text-[11px]" onClick={onManageProviders}>去接入供应商</button>}
+          action={<PixelButton type="button" size="sm" tone="gold" onClick={onManageProviders}>去接入供应商</PixelButton>}
         />
       )}
       {strategy?.warnings.filter((w) => !w.includes('未接入军师模型')).map((w) => (

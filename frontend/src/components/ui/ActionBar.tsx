@@ -92,8 +92,8 @@ export default function ActionBar({ sessionId, caseData, agents, turns, done, on
   const pct = Math.round((save.energy / ENERGY_MAX) * 100)
 
   return (
-    <div className="panel-elevated flex shrink-0 flex-col gap-2 p-2 sm:p-2.5">
-      <div className="flex items-stretch gap-2">
+    <div className="panel-elevated flex shrink-0 flex-col gap-2 p-2 sm:p-2.5 xl:flex-row xl:items-stretch">
+      <div className="flex items-stretch gap-2 xl:min-w-0 xl:flex-[1.35]">
         {/* 能量槽 */}
         <div className="flex w-[150px] shrink-0 flex-col justify-center gap-1 border-2 border-ghost-700 bg-ghost-700/10 px-2.5 py-1.5">
           <div className="flex items-center justify-between">
@@ -138,7 +138,7 @@ export default function ActionBar({ sessionId, caseData, agents, turns, done, on
       </div>
 
       {/* 自由低语 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 xl:min-w-[360px] xl:flex-1">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-ghost-700 bg-ghost-700/10">
           <ParallaxPxlKitIcon icon={GhostFriend} size={20} strength={12} interactive appearance="palette" aria-label="逝者的幽灵" />
         </div>
@@ -153,7 +153,7 @@ export default function ActionBar({ sessionId, caseData, agents, turns, done, on
           </button>
         </div>
         {!done && (
-          <div className="no-scrollbar hidden items-center gap-1.5 overflow-x-auto xl:flex">
+          <div className="no-scrollbar hidden items-center gap-1.5 overflow-x-auto 2xl:flex">
             {GHOST_QUIPS.map((q) => (
               <button key={q} type="button" onClick={() => { setText(q); sfx('move') }}
                 className="shrink-0 border border-ghost-700/60 bg-ghost-700/10 px-2 py-0.5 text-[10px] text-ghost-300/85 transition hover:border-ghost-400 hover:text-ghost-300">

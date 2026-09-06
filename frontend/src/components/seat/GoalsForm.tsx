@@ -1,5 +1,4 @@
-import { PixelAlert, PixelIconButton, PixelInput, PixelNumberInput, PixelSelect, PixelTextarea, PixelTooltip } from '@pxlkit/ui-kit'
-import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
+import { PixelAlert, PixelButton, PixelIconButton, PixelInput, PixelNumberInput, PixelSelect, PixelTextarea, PixelTooltip } from '@pxlkit/ui-kit'
 import type { ReactNode } from 'react'
 import {
   RED_LINE_TEMPLATES, SOFT_GOAL_TEMPLATES, TARGET_WEIGHTS, assetEmoji, emptyGoals, isRedLineComplete,
@@ -50,9 +49,9 @@ export default function GoalsForm({ memberId, compact }: Props) {
                     <span className="pixel-text shrink-0 text-[10px] text-gold-400">{i + 1}st · {weight}</span>
                   </PixelTooltip>
                 )}
-                <PixelIconButton label="上移" size="sm" icon={<ChevronUp size={12} />} disabled={i === 0} onClick={() => move(i, -1)} />
-                <PixelIconButton label="下移" size="sm" icon={<ChevronDown size={12} />} disabled={i === goals.target_assets.length - 1} onClick={() => move(i, 1)} />
-                <PixelIconButton label="移除" size="sm" tone="red" icon={<Trash2 size={12} />} onClick={() => setTargets(goals.target_assets.filter((x) => x !== id))} />
+                <PixelIconButton label="上移" size="sm" icon={<span aria-hidden>↑</span>} disabled={i === 0} onClick={() => move(i, -1)} />
+                <PixelIconButton label="下移" size="sm" icon={<span aria-hidden>↓</span>} disabled={i === goals.target_assets.length - 1} onClick={() => move(i, 1)} />
+                <PixelIconButton label="移除" size="sm" tone="red" icon={<span aria-hidden>×</span>} onClick={() => setTargets(goals.target_assets.filter((x) => x !== id))} />
               </li>
             )
           })}
@@ -84,9 +83,9 @@ export default function GoalsForm({ memberId, compact }: Props) {
             value={min ?? undefined}
             onChange={(n) => updGoals(memberId, { min_value_share: n })}
           />
-          <button type="button" className="btn-ghost h-9 px-2 text-[11px]" onClick={() => updGoals(memberId, { min_value_share: null })}>
+          <PixelButton type="button" size="sm" variant="ghost" onClick={() => updGoals(memberId, { min_value_share: null })}>
             清空
-          </button>
+          </PixelButton>
           {reach && (
             <span className="pixel-text text-[11px] text-ink-400">可达 {reach.low.toFixed(1)}%~{reach.high.toFixed(1)}%</span>
           )}
@@ -207,7 +206,7 @@ function LineList<T extends RedLine | SoftGoal, K extends string>({
                 <div className="pixel-text text-[12px] text-ink-100">{textOf(item)}</div>
                 {!ok && <div className="text-[11px] text-seal-400">参数未齐，开庭时会被剔除</div>}
               </div>
-              <PixelIconButton label="删除" size="sm" tone="red" icon={<Trash2 size={12} />} onClick={() => onChange(items.filter((_, j) => j !== i))} />
+              <PixelIconButton label="删除" size="sm" tone="red" icon={<span aria-hidden>×</span>} onClick={() => onChange(items.filter((_, j) => j !== i))} />
             </div>
             {renderFields(item, i, update)}
           </div>

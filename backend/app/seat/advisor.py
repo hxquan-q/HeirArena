@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -79,7 +79,7 @@ class CardOut(_Strict):
     title: str = Field(max_length=20)
     text: str = Field(max_length=180)
     responds_to: str | None = None
-    action: str = ""
+    action: Literal["attack", "ally", "propose", "concede", "plead"] = "propose"
     claims: dict[str, float] = Field(default_factory=dict)
     suggests_admission: str | None = None
     serves: str = ""
@@ -96,12 +96,22 @@ class MetaOut(_Strict):
     claims: dict[str, float] = Field(default_factory=dict)
 
 
+SoftScore = Annotated[float, Field(ge=0, le=1)]
+
+
+class DebriefRationaleOut(_Strict):
+    kind: Literal["soft_goal", "custom_red_line"]
+    index: int = Field(ge=0)
+    reason: str = Field(min_length=1, max_length=160)
+    turn_ids: list[str] = Field(default_factory=list, max_length=8)
+
+
 class DebriefOut(_Strict):
-    soft_scores: dict[str, dict[str, float]]
+    soft_scores: dict[str, dict[str, SoftScore]]
     custom_red_lines: dict[str, dict[str, bool]]
     narrative: str = Field(max_length=600)
     next_time: list[str] = Field(default_factory=list, max_length=5)
-    rationales: dict[str, list[str]] = Field(default_factory=dict)
+    rationales: dict[str, list[DebriefRationaleOut]] = Field(default_factory=dict)
 
 
 def _advisor_timeout(settings: Settings) -> float:
@@ -247,7 +257,7 @@ def rules_brief(analysis: SeatAnalysis, member_id: str) -> Brief:
     risks = [
         _item("risks", 0, "当庭承认自己有能力却未尽扶养义务（admit_neglect）会少分 3 个百分点（第1130条）。", article="1130"),
         _item("risks", 1, "明确放弃部分应得份额（waive_share）会少分 3 个百分点（第1132条）。", article="1132"),
-        _item("risks", 2, "协商阶段主动让步（concede）会少分 1.5 个百分点（第1132条）。", article="1132"),
+        _item("risks", 2, "协商阶段可用 concede 表达谈判让步，但它本身不改变份额；放弃份额必须由玩家显式确认。", article="1132"),
     ]
     return Brief(
         member_id=member_id,
@@ -536,10 +546,42 @@ async def generate_debrief(
     *,
     complete: CompleteFn | None = None,
 ) -> DebriefOut:
-    return await complete_schema(
+    result = await complete_schema(
         client,
         debrief_messages(case, legal, verdict, transcript_text, all_goals, player_brief_enabled, player_id),
         DebriefOut,
         complete=complete,
         max_tokens=3000,
     )
+    expected_soft = {
+        member_id: {str(index) for index in range(len(goals.soft_goals))}
+        for member_id, goals in all_goals.items()
+        if goals.soft_goals
+    }
+    expected_custom = {
+        member_id: {
+            str(index) for index, red_line in enumerate(goals.red_lines)
+            if red_line.kind == "custom"
+        }
+        for member_id, goals in all_goals.items()
+        if any(red_line.kind == "custom" for red_line in goals.red_lines)
+    }
+    actual_soft = {
+        member_id: set(scores)
+        for member_id, scores in result.soft_scores.items()
+        if scores
+    }
+    actual_custom = {
+        member_id: set(scores)
+        for member_id, scores in result.custom_red_lines.items()
+        if scores
+    }
+    if actual_soft != expected_soft:
+        raise AdvisorUnavailable(
+            f"军师软目标评分索引不完整：期望 {expected_soft}，实际 {actual_soft}"
+        )
+    if actual_custom != expected_custom:
+        raise AdvisorUnavailable(
+            f"军师自定义红线评分索引不完整：期望 {expected_custom}，实际 {actual_custom}"
+        )
+    return result

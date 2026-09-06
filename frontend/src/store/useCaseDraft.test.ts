@@ -23,7 +23,7 @@ vi.mock('../api/client', async () => {
 })
 
 import { PRESETS } from '../data/presets'
-import type { Goals } from '../types'
+import type { Goals, StrategyPack } from '../types'
 import {
   cleanDraft,
   goalsFromWish,
@@ -182,6 +182,33 @@ describe('useCaseDraft seat', () => {
     expect(cleaned.members.every((m) => m.name.trim())).toBe(true)
     expect(cleaned.seat?.goals.ghost).toBeUndefined()
     expect(cleaned.seat?.goals.daughter).toBeTruthy()
+  })
+
+  it('cleanDraft preserves a valid generated strategy for session submission', () => {
+    useCaseDraft.getState().enterSeat('daughter')
+    const strategy = { player_id: 'daughter' } as StrategyPack
+    useCaseDraft.setState((s) => ({
+      c: { ...s.c, seat: { ...s.c.seat!, strategy } },
+    }))
+
+    expect(cleanDraft(useCaseDraft.getState().c).seat?.strategy).toBe(strategy)
+  })
+
+  it('member becoming deceased immediately clears an invalid player seat', () => {
+    useCaseDraft.getState().enterSeat('daughter')
+    useCaseDraft.getState().updMember('daughter', { deceased: true })
+    expect(useCaseDraft.getState().c.seat).toBeNull()
+  })
+
+  it('reapplying identical inferred goals does not mutate the draft', () => {
+    useCaseDraft.getState().enterSeat('daughter')
+    const inferred: Record<string, Goals> = {
+      son: { target_assets: ['house'], min_value_share: null, red_lines: [], soft_goals: [], narrative: '推断', source: 'inferred' },
+    }
+    useCaseDraft.getState().applyInferred(inferred)
+    const first = useCaseDraft.getState().c
+    useCaseDraft.getState().applyInferred(inferred)
+    expect(useCaseDraft.getState().c).toBe(first)
   })
 
   it('cleanDraft drops incomplete red lines and custom soft goals', () => {

@@ -111,7 +111,7 @@ export default function SeatDock({ sessionId, draft, onDraftChange, cardsSlot, o
       )}
 
       {draft.action === 'concede' && awaiting.phase === 'negotiation' && (
-        <PixelAlert tone="gold" message="协商阶段选择让步会被记为主动让步（−1.5）" live="polite" />
+        <PixelAlert tone="gold" message="让步只记录谈判动作，不会自动改变份额；放弃份额必须在自认区显式勾选" live="polite" />
       )}
 
       <PixelTextarea
@@ -160,9 +160,11 @@ export default function SeatDock({ sessionId, draft, onDraftChange, cardsSlot, o
                   onChange={(n) => patch({ claims: { ...draft.claims, [asset.id]: n } })}
                 />
                 {draft.claims[asset.id] != null && (
-                  <button
+                  <PixelButton
                     type="button"
-                    className="btn-ghost mb-1 h-7 px-1.5 text-[10px]"
+                    size="sm"
+                    variant="ghost"
+                    className="mb-1"
                     onClick={() => {
                       const next = { ...draft.claims }
                       delete next[asset.id]
@@ -170,7 +172,7 @@ export default function SeatDock({ sessionId, draft, onDraftChange, cardsSlot, o
                     }}
                   >
                     清空
-                  </button>
+                  </PixelButton>
                 )}
               </div>
             ))}

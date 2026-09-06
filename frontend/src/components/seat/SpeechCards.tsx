@@ -60,13 +60,15 @@ export default function SpeechCards({ sessionId, cards, agents, brief, onUse }: 
             <p className={`text-[12px] leading-relaxed text-ink-200 ${expanded ? '' : 'line-clamp-3'}`}>
               {card.text}
             </p>
-            <button
+            <PixelButton
               type="button"
-              className="mt-1 text-[10px] text-gold-300 hover:underline"
+              size="sm"
+              variant="ghost"
+              className="mt-1"
               onClick={() => setOpenId(expanded ? null : card.id)}
             >
               {expanded ? '收起' : '展开全文'}
-            </button>
+            </PixelButton>
             <div className="mt-2 flex flex-wrap gap-1">
               {target && <PixelChip label={`回应 ${target}`} size="sm" tone="cyan" />}
               {card.serves.map((id) => (

@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from pathlib import Path
 
@@ -106,6 +107,34 @@ def test_player_and_opponent_briefs_are_isolated():
         assert "SON_BASELINE_ONLY" in text
         assert "DAUGHTER_BASELINE_ONLY" not in text
         assert "DAUGHTER_RISK_ONLY" not in text
+
+
+def test_fake_llm_player_receives_and_uses_own_brief(monkeypatch):
+    orch = _orch(_seated_case())
+    orch.clients["daughter"] = object()
+    captured = ""
+
+    async def fake_stream(_agent_id, messages, _fallback):
+        nonlocal captured
+        captured = "\n".join(message["content"] for message in messages)
+
+        async def chunks():
+            yield '我依照简报守住法定基线。\n---\n{"action":"propose","target":null,"claims":{},"admissions":[]}'
+
+        return chunks(), True
+
+    async def no_sleep(_seconds):
+        await asyncio.sleep(0)
+
+    monkeypatch.setattr(orch, "_llm_stream_or_fallback", fake_stream)
+    monkeypatch.setattr(orch, "_sleep", no_sleep)
+    asyncio.run(orch._debater_turn(orch.members["daughter"], "statements", 0))
+
+    assert "DAUGHTER_BASELINE_ONLY" in captured
+    assert "SON_BASELINE_ONLY" not in captured
+    turn = next(turn for turn in orch.s.transcript if turn.agent_id == "daughter")
+    assert "依照简报守住法定基线" in turn.text
+    assert turn.meta["admissions"] == []
 
 
 def test_executor_prompts_are_seat_blind():

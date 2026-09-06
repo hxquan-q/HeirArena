@@ -2,6 +2,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -11,7 +13,7 @@ from app.agents import Orchestrator, build_session  # noqa: E402
 from app.agents.court_graph import register_orchestrator, set_checkpointer  # noqa: E402
 from app.agents.restore import rebuild_orchestrator, rebuild_session  # noqa: E402
 from app.legal import compute_legal_shares  # noqa: E402
-from app.main import ORCHESTRATORS, SESSIONS, SpeakBody, speak  # noqa: E402
+from app.main import ORCHESTRATORS, SESSIONS, SeatBody, SpeakBody, SpeakMeta, set_seat, speak  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Member, ModelRef  # noqa: E402
 from app.persist import init_engine, reset_engine  # noqa: E402
@@ -132,6 +134,25 @@ def test_delegate_uses_mock_speech(monkeypatch):
     first = next(t for t in session.transcript if t.agent_id == "wife" and t.phase == "statements")
     assert first.text
     assert first.meta.get("action") in {"attack", "ally", "propose", "concede", "plead"}
+
+
+def test_ai_player_meta_cannot_create_admissions():
+    case = _human_case()
+    session = build_session(case, compute_legal_shares(case), MOCK_SETTINGS)
+    orch = Orchestrator(session)
+
+    delegated = orch._normalize_meta(
+        "wife",
+        {"action": "propose", "admissions": ["admit_neglect", "waive_share", "acknowledge_support:son"]},
+    )
+    explicit = orch._normalize_meta(
+        "wife",
+        {"action": "propose", "admissions": ["waive_share"], "by": "human"},
+        allow_player_admissions=True,
+    )
+
+    assert delegated["admissions"] == []
+    assert explicit["admissions"] == ["waive_share"]
 
 
 def test_waiting_409_and_speak_once(monkeypatch):
@@ -335,3 +356,177 @@ def test_speak_meta_extract_ignores_model_admissions(monkeypatch):
     assert turn.meta["action"] == "attack"
     assert turn.meta["target"] == "son"
     assert turn.meta["admissions"] == []
+    assert turn.meta["by"] == "human"
+
+
+def test_speak_partial_meta_extracts_only_missing_fields(monkeypatch):
+    set_checkpointer(InMemorySaver())
+    monkeypatch.setattr(Orchestrator, "_sleep", _no_sleep)
+
+    async def fake_meta(*_a, **_k):
+        return {"action": "attack", "target": "son", "claims": {"house": 60}}
+
+    monkeypatch.setattr("app.seat.advisor.resolve_advisor", lambda *a, **k: (object(), "fake"))
+    monkeypatch.setattr("app.seat.advisor.extract_meta", fake_meta)
+    case = _human_case()
+    case.seat.advisor_model = ModelRef(provider_id="qwen", model="qwen-plus")
+    session = build_session(case, compute_legal_shares(case), MOCK_SETTINGS)
+    orch = Orchestrator(session)
+    _bind(session, orch)
+
+    async def scenario():
+        await _until_awaiting(orch)
+        await _speak_and_resume(
+            session,
+            orch,
+            SpeakBody(text="我愿意结盟，但房产应由我取得。", meta=SpeakMeta(action="ally")),
+        )
+
+    asyncio.run(scenario())
+    turn = next(t for t in session.transcript if t.agent_id == "wife" and t.phase == "statements")
+    assert turn.meta["action"] == "ally"
+    assert turn.meta["target"] == "son"
+    assert turn.meta["claims"] == {"house": 60}
+    assert turn.meta["admissions"] == []
+
+
+def test_concurrent_speak_claims_waiting_turn_once(monkeypatch):
+    case = _human_case()
+    case.seat.advisor_model = ModelRef(provider_id="qwen", model="qwen-plus")
+    session = build_session(case, compute_legal_shares(case), MOCK_SETTINGS)
+    orch = Orchestrator(session)
+    _bind(session, orch)
+    session.status = "awaiting_player"
+    session.seat.awaiting = {"turn_key": "statements:0:wife", "phase": "statements", "round": 0}
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_meta(*_args, **_kwargs):
+        entered.set()
+        await release.wait()
+        return {"action": "propose", "target": None, "claims": {}}
+
+    monkeypatch.setattr("app.seat.advisor.resolve_advisor", lambda *a, **k: (object(), "fake"))
+    monkeypatch.setattr("app.seat.advisor.extract_meta", slow_meta)
+    monkeypatch.setattr("app.main._spawn", lambda *_a, **_k: asyncio.get_running_loop().create_future())
+
+    async def scenario():
+        first = asyncio.create_task(speak(session.id, SpeakBody(text="第一份发言")))
+        await entered.wait()
+        second = asyncio.create_task(speak(session.id, SpeakBody(text="第二份发言")))
+        await asyncio.sleep(0)
+        release.set()
+        return await asyncio.gather(first, second, return_exceptions=True)
+
+    results = asyncio.run(scenario())
+    assert sum(isinstance(item, dict) and item.get("ok") is True for item in results) == 1
+    conflicts = [item for item in results if isinstance(item, HTTPException)]
+    assert len(conflicts) == 1
+    assert conflicts[0].status_code == 409
+
+
+@pytest.mark.parametrize("failure_point", ["persist", "spawn"])
+def test_speak_commit_failure_rolls_back_and_allows_one_retry(monkeypatch, failure_point):
+    case = _human_case()
+    session = build_session(case, compute_legal_shares(case), MOCK_SETTINGS)
+    orch = Orchestrator(session)
+    _bind(session, orch)
+    awaiting = {"turn_key": "statements:0:wife", "phase": "statements", "round": 0}
+    session.status = "awaiting_player"
+    session.seat.awaiting = dict(awaiting)
+    persisted_statuses = []
+    persist_attempts = 0
+    spawn_attempts = 0
+
+    def persist_snapshot(_extras):
+        nonlocal persist_attempts
+        persist_attempts += 1
+        if failure_point == "persist" and persist_attempts == 1:
+            raise RuntimeError("disk unavailable")
+        persisted_statuses.append(session.status)
+
+    def spawn(*_args, **_kwargs):
+        nonlocal spawn_attempts
+        spawn_attempts += 1
+        if failure_point == "spawn" and spawn_attempts == 1:
+            raise RuntimeError("task startup failed")
+        return asyncio.get_running_loop().create_future()
+
+    monkeypatch.setattr(session, "persist_snapshot", persist_snapshot)
+    monkeypatch.setattr("app.main._spawn", spawn)
+    body = SpeakBody(
+        text="可重试的发言",
+        meta=SpeakMeta(action="propose", target=None, claims={}, admissions=[]),
+    )
+
+    async def scenario():
+        with pytest.raises(RuntimeError):
+            await speak(session.id, body)
+        assert session.status == "awaiting_player"
+        assert session.seat.pending is None
+        assert session.seat.awaiting == awaiting
+        assert persisted_statuses[-1] == "awaiting_player"
+        if failure_point == "persist":
+            assert persisted_statuses == ["awaiting_player"]
+        else:
+            assert persisted_statuses == ["running", "awaiting_player"]
+
+        assert await speak(session.id, body) == {"ok": True}
+        with pytest.raises(HTTPException) as duplicate:
+            await speak(session.id, body)
+        assert duplicate.value.status_code == 409
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure_point", ["persist", "spawn"])
+def test_delegate_seat_failure_is_atomic_and_retryable(monkeypatch, failure_point):
+    case = _human_case()
+    session = build_session(case, compute_legal_shares(case), MOCK_SETTINGS)
+    orch = Orchestrator(session)
+    _bind(session, orch)
+    awaiting = {"turn_key": "statements:0:wife", "phase": "statements", "round": 0}
+    session.status = "awaiting_player"
+    session.seat.human = True
+    session.seat.awaiting = dict(awaiting)
+    persisted = []
+    persist_attempts = 0
+    spawn_attempts = 0
+
+    def persist_snapshot(_extras):
+        nonlocal persist_attempts
+        persist_attempts += 1
+        if failure_point == "persist" and persist_attempts == 1:
+            raise RuntimeError("disk unavailable")
+        persisted.append((session.status, session.seat.human, session.seat.pending))
+
+    def spawn(*_args, **_kwargs):
+        nonlocal spawn_attempts
+        spawn_attempts += 1
+        if failure_point == "spawn" and spawn_attempts == 1:
+            raise RuntimeError("task startup failed")
+        return asyncio.get_running_loop().create_future()
+
+    monkeypatch.setattr(session, "persist_snapshot", persist_snapshot)
+    monkeypatch.setattr("app.main._spawn", spawn)
+
+    async def scenario():
+        with pytest.raises(RuntimeError):
+            await set_seat(session.id, SeatBody(human=False))
+        assert session.status == "awaiting_player"
+        assert session.seat.human is True
+        assert session.seat.pending is None
+        assert session.seat.awaiting == awaiting
+        assert [event for event in session.events if event["type"] == "seat"] == []
+        assert persisted[-1] == ("awaiting_player", True, None)
+
+        assert await set_seat(session.id, SeatBody(human=False)) == {"ok": True, "human": False}
+        seat_events = [event for event in session.events if event["type"] == "seat"]
+        assert len(seat_events) == 1
+        assert seat_events[0]["human"] is False
+        assert session.status == "running"
+        assert session.seat.human is False
+        assert session.seat.pending == {"turn_key": awaiting["turn_key"], "delegate": True}
+
+    asyncio.run(scenario())

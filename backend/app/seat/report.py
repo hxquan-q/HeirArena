@@ -141,10 +141,14 @@ def _brief_lines(brief: Brief) -> list[str]:
     return lines
 
 
-def _matrix_table(strategy: StrategyPack, scorecards: dict[str, Any], case: CaseInput) -> list[str]:
+def _matrix_table(
+    strategy: StrategyPack, scorecards: dict[str, Any], case: CaseInput, member_ids: set[str],
+) -> list[str]:
     headers = ["成员", "法定基线", "可达区间", "目标资产", "与我的冲突", "潜在同盟", "策略要点", "威胁", "实际达成度"]
     rows: list[list[str]] = []
     for row in strategy.matrix:
+        if row.member_id not in member_ids:
+            continue
         reach = "—"
         if row.no_legal_share_reason:
             reach = row.no_legal_share_reason
@@ -170,12 +174,13 @@ def _matrix_table(strategy: StrategyPack, scorecards: dict[str, Any], case: Case
     return _md_table(headers, rows)
 
 
-def _opponent_notes(strategy: StrategyPack, case: CaseInput) -> list[str]:
+def _opponent_notes(
+    strategy: StrategyPack, case: CaseInput, goals_map: dict[str, Goals],
+) -> list[str]:
     lines: list[str] = []
     player = strategy.player_id
-    goals_map = case.seat.goals if case.seat else {}
     for row in strategy.matrix:
-        if row.member_id == player:
+        if row.member_id == player or row.member_id not in goals_map:
             continue
         lines += ["", f"**{_name(case, row.member_id)}**"]
         goals = goals_map.get(row.member_id)
@@ -338,8 +343,11 @@ def render_seat_report(session: Any) -> list[str]:
     lines += ["", "### 全员策略矩阵", ""]
     scorecards = debrief.get("scorecards") or {}
     if strategy:
-        lines += _matrix_table(strategy, scorecards, case)
-        lines += _opponent_notes(strategy, case)
+        from .analysis import merged_goals
+
+        all_goals = merged_goals(case, session.legal, player_id)
+        lines += _matrix_table(strategy, scorecards, case, set(all_goals))
+        lines += _opponent_notes(strategy, case, all_goals)
     else:
         lines.append("开庭前未推演策略")
     lines += ["", "### 博弈分析", ""]
@@ -361,6 +369,15 @@ def render_seat_report(session: Any) -> list[str]:
             )
     else:
         lines.append("- 无 what-if 差分")
+    if strategy and strategy.evidence_checklist:
+        lines += ["", "举证清单", ""]
+        for hint in strategy.evidence_checklist:
+            evidence = "、".join(hint.get("evidence") or []) or "—"
+            lines.append(
+                f"- {hint.get('label', hint.get('lever', ''))}（第{hint.get('article', '')}条）"
+                f"：举证责任：{hint.get('burden') or '—'}；证据：{evidence}"
+                + (f"；说明：{hint['note']}" if hint.get("note") else "")
+            )
     lines += ["", "### 记分卡", ""]
     if debrief:
         lines += _scorecard_lines(debrief, case, player_id)
