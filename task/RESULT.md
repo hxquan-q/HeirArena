@@ -15,11 +15,11 @@
 
 ```text
 cd backend; .venv/Scripts/python -m pytest -q
-# 144 passed, 1 warning
+# 147 passed, 1 warning
 
 cd ../frontend
 npm run lint    # oxlint exit 0
-npm test        # 15 files / 47 tests passed
+npm test        # 16 files / 48 tests passed
 npm run build   # tsc -b && vite build exit 0
 ```
 
