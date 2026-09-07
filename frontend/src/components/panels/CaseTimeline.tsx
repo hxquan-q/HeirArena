@@ -1,11 +1,11 @@
 import { PxlKitIcon, type PxlKitData } from '@pxlkit/core'
 import { Megaphone } from '@pxlkit/feedback'
-import { Flag, Skull, Sword, Trophy } from '@pxlkit/gamification'
+import { Flag, Scroll, Skull, Sword, Trophy } from '@pxlkit/gamification'
 import { Friends } from '@pxlkit/social'
 import { PixelTimeline, PixelTimelineItem } from '@pxlkit/ui-kit'
 import { useEffect, useMemo, useRef } from 'react'
 import type { PhaseState } from '../../store/useCourt'
-import type { AgentSpec, RelationEdge } from '../../types'
+import type { AgentSpec, CourtEvidence, RelationEdge } from '../../types'
 import { Gavel } from '../icons/pixel'
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   relationLog: RelationEdge[]
   ghosts: { text: string; ts: number }[]
   notices: { text: string; ts: number }[]
+  evidence: CourtEvidence[]
   gavelAt: number | null
   verdictAt: number | null
   agents: AgentSpec[]
@@ -30,7 +31,7 @@ interface Event {
 const clock = (ts: number) => new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 
 /** 案件时间线：阶段、攻击/结盟、显灵、公告、落槌，按时间排成一条 RPG 任务日志。 */
-export default function CaseTimeline({ phaseHistory, relationLog, ghosts, notices, gavelAt, verdictAt, agents, decedent }: Props) {
+export default function CaseTimeline({ phaseHistory, relationLog, ghosts, notices, evidence, gavelAt, verdictAt, agents, decedent }: Props) {
   const nameOf = (id: string) => agents.find((a) => a.id === id)?.name ?? id
   const events = useMemo<Event[]>(() => {
     const out: Event[] = []
@@ -43,11 +44,21 @@ export default function CaseTimeline({ phaseHistory, relationLog, ghosts, notice
     }
     for (const g of ghosts) out.push({ ts: g.ts, icon: Skull, label: `${decedent}显灵`, detail: g.text, tone: '#c8b8ff' })
     for (const n of notices) out.push({ ts: n.ts, icon: Megaphone, label: '法庭公告', detail: n.text, tone: '#f3d38a' })
+    for (const item of evidence) {
+      const ts = item.submitted_at < 10_000_000_000 ? item.submitted_at * 1000 : item.submitted_at
+      out.push({
+        ts,
+        icon: Scroll,
+        label: '庭上举证',
+        detail: `${item.label} · ${item.evidence_type}`,
+        tone: '#f3d38a',
+      })
+    }
     if (gavelAt) out.push({ ts: gavelAt, icon: Gavel, label: '落槌', tone: '#e2b25a' })
     if (verdictAt) out.push({ ts: verdictAt, icon: Trophy, label: '裁决送达', tone: '#f3d38a' })
     return out.sort((a, b) => a.ts - b.ts)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phaseHistory, relationLog, ghosts, notices, gavelAt, verdictAt, agents, decedent])
+  }, [phaseHistory, relationLog, ghosts, notices, evidence, gavelAt, verdictAt, agents, decedent])
 
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {

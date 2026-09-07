@@ -36,9 +36,31 @@ def rebuild_session(session_id: str, settings: Settings, providers: ProviderStor
             cards=seat_data.get("cards") or {},
             pending=seat_data.get("pending"),
             debrief=seat_data.get("debrief"),
+            evidence=seat_data.get("evidence") or [],
         )
     elif case.seat is not None:
         session.seat = SeatRuntime(human=case.seat.seat_human)
+    if session.verdict and session.seat and session.seat.evidence and case.seat:
+        verdict_legal = session.verdict.get("legal_percent") or {}
+        stored_legal = {share.member_id: share.percent for share in session.legal.shares}
+        legal_is_current = all(
+            member_id in stored_legal and abs(float(stored_legal[member_id]) - float(percent)) < 0.05
+            for member_id, percent in verdict_legal.items()
+        )
+        if not legal_is_current:
+            from ..seat.evidence import adjudicated_case
+
+            effective_case, effective_legal, records = adjudicated_case(
+                case,
+                case.seat.player_id,
+                session.seat.evidence,
+            )
+            session.case = effective_case
+            session.legal = effective_legal
+            session.seat.evidence = [record.model_dump() for record in records]
+            percentages = {share.member_id: share.percent for share in effective_legal.shares}
+            for spec in session.specs:
+                spec.legal_percent = percentages.get(spec.id, 0.0)
     for sp in load_speeches(session_id):
         session.transcript.append(Turn(
             turn_id=sp["turn_id"], agent_id=sp["agent_id"], name=sp["name"],

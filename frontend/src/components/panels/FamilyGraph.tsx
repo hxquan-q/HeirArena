@@ -37,26 +37,19 @@ const ROW_GAP = 100
 const PAD = 16
 const COL_GAP = 12
 
+const PIXEL_FONT = { fontFamily: 'var(--font-pixel)' } as const
+const INK = { bg: '#17120f', card: '#241b16', line: '#55443a', muted: '#a08d78', text: '#f5ecd9', gold: '#e2b25a', seal: '#ea6a5b', pink: '#f07aa8' }
+
 export default function FamilyGraph({ caseData, legal, agents }: Props) {
   const { nodes, edges, height, sideDividerY } = useMemo(() => layout(caseData, legal, agents), [caseData, legal, agents])
   return (
-    <svg viewBox={`0 0 ${GW} ${height}`} width="100%" className="select-none">
-      <defs>
-        <linearGradient id="fg-decedent" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#33281a" />
-          <stop offset="1" stopColor="#211a10" />
-        </linearGradient>
-        <linearGradient id="fg-node" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1a1f2c" />
-          <stop offset="1" stopColor="#12161f" />
-        </linearGradient>
-      </defs>
-
+    <svg viewBox={`0 0 ${GW} ${height}`} width="100%" className="select-none" shapeRendering="crispEdges">
       {sideDividerY !== null && (
         <g>
-          <line x1={PAD} x2={GW - PAD} y1={sideDividerY} y2={sideDividerY} stroke="#2a3142" strokeDasharray="4 5" />
-          <rect x={GW / 2 - 78} y={sideDividerY - 9} width="156" height="18" rx="9" fill="#0b0d12" stroke="#2a3142" />
-          <text x={GW / 2} y={sideDividerY + 3.5} textAnchor="middle" fontSize="9" letterSpacing="2" fill="#8b93a7">
+          <line x1={PAD} x2={GW - PAD} y1={sideDividerY} y2={sideDividerY} stroke={INK.line} strokeWidth="2" strokeDasharray="4 4" />
+          <rect x={GW / 2 - 76} y={sideDividerY - 7} width="156" height="18" fill="#000" opacity=".5" />
+          <rect x={GW / 2 - 78} y={sideDividerY - 9} width="156" height="18" fill={INK.bg} stroke={INK.line} strokeWidth="2" />
+          <text x={GW / 2} y={sideDividerY + 4} textAnchor="middle" fontSize="9" letterSpacing="2" fill={INK.muted} style={PIXEL_FONT}>
             庭外席 · 酌情关照对象
           </text>
         </g>
@@ -64,11 +57,12 @@ export default function FamilyGraph({ caseData, legal, agents }: Props) {
 
       {edges.map((e, i) => (
         <g key={i}>
-          <path d={e.d} fill="none" stroke={e.color} strokeWidth="1.6" strokeDasharray={e.dashed ? '5 4' : undefined} opacity=".8" />
+          <path d={e.d} fill="none" stroke={e.color} strokeWidth="2" strokeDasharray={e.dashed ? '4 4' : undefined} opacity=".85" />
           {e.label && (
             <g transform={`translate(${e.lx} ${e.ly})`}>
-              <rect x="-19" y="-8.5" width="38" height="17" rx="8.5" fill="#0b0d12" stroke="#2a3142" />
-              <text textAnchor="middle" y="3.5" fontSize="9" fill="#8b93a7">{e.label}</text>
+              <rect x="-17" y="-6.5" width="38" height="17" fill="#000" opacity=".5" />
+              <rect x="-19" y="-8.5" width="38" height="17" fill={INK.bg} stroke={e.color} strokeWidth="2" />
+              <text textAnchor="middle" y="4" fontSize="9" fill={e.color} style={PIXEL_FONT}>{e.label}</text>
             </g>
           )}
         </g>
@@ -77,34 +71,41 @@ export default function FamilyGraph({ caseData, legal, agents }: Props) {
       {nodes.map((n) => {
         const dead = n.member?.deceased
         const disq = n.member?.disqualified
-        const tag = n.percent > 0 ? null : disq ? { text: '丧失继承权', color: '#f87171' }
-          : !n.decedent && !dead && !n.eligible ? { text: '无继承权', color: '#5b647a' } : null
+        const tag = n.percent > 0 ? null : disq ? { text: '丧失继承权', color: INK.seal }
+          : !n.decedent && !dead && !n.eligible ? { text: '无继承权', color: INK.muted } : null
         const name = `${dead ? '✝ ' : ''}${n.label}`
         const nameMax = Math.max(3, Math.floor((n.w - 18) / 12))
         const subMax = Math.max(3, Math.floor((n.w - (n.percent > 0 ? 52 : 18)) / 10))
+        const border = n.decedent ? INK.gold : n.eligible ? n.color : INK.line
         return (
           <g key={n.id} transform={`translate(${n.x - n.w / 2} ${n.y - NODE_H / 2})`} opacity={dead ? 0.55 : 1}>
-            <rect width={n.w} height={NODE_H} rx="11" fill={n.decedent ? 'url(#fg-decedent)' : 'url(#fg-node)'}
-              stroke={n.decedent ? '#d4a55a' : n.eligible ? n.color : '#2a3142'} strokeWidth={n.decedent || n.eligible ? 1.6 : 1} />
-            {(n.eligible || n.decedent) && (
-              <rect x="0" y="0" width="3.5" height={NODE_H} rx="1.75" fill={n.decedent ? '#d4a55a' : n.color} opacity=".9" />
-            )}
-            <text x="10" y="20" fontSize="11.5" fontWeight="700" fill={dead ? '#8b93a7' : '#eef0f5'}>
+            {/* 硬阴影 → 卡片 → 顶部一条高光，跟页面里的 panel 同一套语言 */}
+            <rect x="3" y="3" width={n.w} height={NODE_H} fill="#000" opacity=".55" />
+            <rect width={n.w} height={NODE_H} fill={n.decedent ? '#2e231c' : INK.card} stroke={border} strokeWidth="2" />
+            <rect x="2" y="2" width={n.w - 4} height="2" fill="#ffffff" opacity=".07" />
+            {(n.eligible || n.decedent) && <rect x="2" y="2" width="4" height={NODE_H - 4} fill={border} />}
+            <text x="12" y="20" fontSize="12" fill={dead ? INK.muted : INK.text} style={PIXEL_FONT}>
               {name.length > nameMax ? name.slice(0, nameMax - 1) + '…' : name}
             </text>
-            <text x="10" y="37" fontSize="9.5" fill="#8b93a7">
+            <text x="12" y="36" fontSize="9.5" fill={INK.muted} style={PIXEL_FONT}>
               {n.sub.length > subMax ? n.sub.slice(0, subMax) : n.sub}
             </text>
             {n.percent > 0 && (
-              <g transform={`translate(${n.w - 7} ${NODE_H - 14})`}>
-                <rect x="-38" y="-9.5" width="38" height="19" rx="9.5" fill={n.color} opacity=".95" />
-                <text x="-19" y="4" textAnchor="middle" fontSize="9.5" fontWeight="700" fill="#0b0d12">{n.percent.toFixed(0)}%</text>
+              <g transform={`translate(${n.w - 6} ${NODE_H - 6})`}>
+                <rect x="-40" y="-18" width="40" height="18" fill={INK.bg} />
+                <rect x="-38" y="-16" width="36" height="14" fill={n.color} />
+                <rect x="-38" y="-16" width="36" height="2" fill="#ffffff" opacity=".3" />
+                <text x="-20" y="-5" textAnchor="middle" fontSize="10" fill={INK.bg} style={PIXEL_FONT}>{n.percent.toFixed(0)}%</text>
               </g>
             )}
             {n.decedent && (
-              <text x={n.w - 8} y="19" fontSize="10" textAnchor="end" fill="#d4a55a">🕯</text>
+              <g transform={`translate(${n.w - 18} 8)`}>
+                <rect x="3" y="4" width="4" height="10" fill="#f6ecd3" />
+                <rect x="4" y="0" width="2" height="4" fill={INK.seal} />
+                <rect x="4" y="0" width="2" height="2" fill="#f3d38a" />
+              </g>
             )}
-            {tag && <text x={n.w - 8} y="19" fontSize="8.5" fill={tag.color} textAnchor="end">{tag.text}</text>}
+            {tag && <text x={n.w - 8} y="18" fontSize="8.5" fill={tag.color} textAnchor="end" style={PIXEL_FONT}>{tag.text}</text>}
           </g>
         )
       })}
@@ -143,7 +144,7 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
   const mk = (m: Member, x: number, y: number, w: number): Node => {
     const n: Node = {
       id: m.id, x, y, w, member: m, label: m.name, sub: RELATION_LABEL[m.relation] ?? m.relation,
-      percent: pct[m.id] ?? 0, eligible: !!elig[m.id], color: color[m.id] ?? '#8b93a7',
+      percent: pct[m.id] ?? 0, eligible: !!elig[m.id], color: color[m.id] ?? INK.muted,
     }
     byId.set(m.id, n)
     return n
@@ -168,7 +169,7 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
   const { xs: sxs, w: sw } = rowSlots(selfItems.length)
   let decedent: Node = {
     id: '__decedent', x: GW / 2, y: rowYs.self, w: sw, label: c.decedent_name, sub: '被继承人',
-    percent: 0, eligible: false, color: '#d4a55a', decedent: true,
+    percent: 0, eligible: false, color: INK.gold, decedent: true,
   }
   selfItems.forEach((m, i) => {
     if (m === null) {
@@ -186,9 +187,9 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
       color: colorHex, dashed, label, lx: (l.x + l.w / 2 + r.x - r.w / 2) / 2, ly: l.y,
     })
   }
-  for (const m of spouses) hEdge(decedent, byId.get(m.id)!, '#d4a55a', false, '婚姻')
-  for (const m of exes) hEdge(decedent, byId.get(m.id)!, '#5b647a', true, '已离婚')
-  for (const m of siblings) hEdge(decedent, byId.get(m.id)!, '#5b647a', true, '手足')
+  for (const m of spouses) hEdge(decedent, byId.get(m.id)!, INK.gold, false, '婚姻')
+  for (const m of exes) hEdge(decedent, byId.get(m.id)!, INK.line, true, '已离婚')
+  for (const m of siblings) hEdge(decedent, byId.get(m.id)!, INK.line, true, '手足')
 
   // 父母 → 被继承人
   if (parents.length) {
@@ -198,7 +199,7 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
       const n = byId.get(m.id)!
       edges.push({
         d: `M${n.x} ${n.y + NODE_H / 2} V${(n.y + decedent.y) / 2} H${decedent.x} V${decedent.y - NODE_H / 2}`,
-        color: '#5b647a', lx: 0, ly: 0,
+        color: INK.line, lx: 0, ly: 0,
       })
     }
   }
@@ -211,7 +212,7 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
       const n = byId.get(m.id)!
       edges.push({
         d: `M${n.x} ${n.y + NODE_H / 2} V${(n.y + target.y) / 2} H${target.x} V${target.y - NODE_H / 2}`,
-        color: '#5b647a', dashed: true, lx: 0, ly: 0,
+        color: INK.line, dashed: true, lx: 0, ly: 0,
       })
     }
   }
@@ -226,7 +227,7 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
       const isInlaw = m.relation === 'daughter_in_law' || m.relation === 'son_in_law'
       edges.push({
         d: `M${decedent.x} ${decedent.y + NODE_H / 2} V${(decedent.y + n.y) / 2} H${n.x} V${n.y - NODE_H / 2}`,
-        color: isInlaw ? '#5b647a' : '#8b93a7', dashed: isInlaw, lx: 0, ly: 0,
+        color: isInlaw ? INK.line : INK.muted, dashed: isInlaw, lx: 0, ly: 0,
       })
     }
   }
@@ -242,7 +243,7 @@ function layout(c: CaseInput, legal: LegalResult, agents: AgentSpec[]) {
       const subrogated = parent?.member?.deceased
       edges.push({
         d: `M${from.x} ${from.y + NODE_H / 2} V${(from.y + n.y) / 2} H${n.x} V${n.y - NODE_H / 2}`,
-        color: subrogated ? '#f472b6' : '#5b647a', dashed: !subrogated,
+        color: subrogated ? INK.pink : INK.line, dashed: !subrogated,
         label: subrogated ? '代位' : undefined, lx: n.x, ly: (from.y + n.y) / 2 - 12,
       })
     })

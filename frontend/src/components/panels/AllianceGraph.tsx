@@ -131,7 +131,7 @@ export default function AllianceGraph({ agents, relationLog, statuses, deceasedI
               style={{ width: NODE, height: NODE, borderColor: isJudge ? undefined : `${a.color}` }}>
               <CharacterPortrait agent={a} status={st} size={NODE - 12} animated={st !== 'idle'} />
             </div>
-            <span className="pixel-text mt-1 border border-ink-950 bg-black/70 px-1 text-[10px] leading-4 whitespace-nowrap" style={{ color: a.color }}>{a.name}</span>
+            <span className="pixel-text mt-1 border border-ink-950 bg-ink-950 px-1 text-[10px] leading-4 whitespace-nowrap" style={{ color: a.color }}>{a.name}</span>
             {!isJudge && t && (
               <span className="mt-0.5 font-mono text-[9px] leading-3 whitespace-nowrap text-ink-400">
                 ⚔{t.atk} 🛡{t.hit} 🤝{t.ally}

@@ -3,8 +3,9 @@ import { Megaphone, MessageSquare, WarningTriangle } from '@pxlkit/feedback'
 import { LootChest, Scroll, Star, Trophy } from '@pxlkit/gamification'
 import { SparkBurst } from '@pxlkit/effects'
 import { UserGroup } from '@pxlkit/social'
-import { ArrowRight, PulsingDot, Robot } from '@pxlkit/ui'
-import { PixelBadge, PixelButton, PixelSegmented, useToast } from '@pxlkit/ui-kit'
+import { Robot } from '@pxlkit/ui'
+import { PixelBadge, PixelButton, PixelSegmented, useMediaQuery, useToast } from '@pxlkit/ui-kit'
+import { ArrowLeft, Check } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -31,6 +32,8 @@ import CoinRain from '../components/scene/CoinRain'
 import CourtroomScene from '../components/scene/CourtroomScene'
 import SafeVoxelStage from '../components/scene3d/SafeVoxelStage'
 import ActionBar from '../components/ui/ActionBar'
+import CourtHud from '../components/ui/CourtHud'
+import TopBar from '../components/ui/TopBar'
 import { buildEvidence, type EvidenceCard } from '../lib/evidence'
 import { SKILLS } from '../lib/skills'
 import { sfx } from '../lib/sfx'
@@ -45,6 +48,15 @@ const TABS: { id: Tab; label: string; icon: PxlKitData }[] = [
   { id: 'legal', label: '法定份额', icon: Scroll },
   { id: 'verdict', label: '裁决', icon: Trophy },
 ]
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
+/* 阶段配色沿用卷宗页四卷的口径：黄铜 / 玉绿 / 火漆 / 幽灵紫 */
+const phaseAccent = (label: string) => {
+  if (label.startsWith('辩论')) return '#ea6a5b'
+  if (label === '陈述') return '#3fb27f'
+  if (label === '协商') return '#a58bff'
+  return '#e2b25a'
+}
 
 const mmss = (ms: number) => {
   const s = Math.max(0, Math.floor(ms / 1000))
@@ -146,7 +158,10 @@ export default function CourtroomPage() {
   }, [s.error, toast])
 
   /* 证据卡牌：从卷宗 + 发言推导；新证言出现时提示 */
-  const evidence = useMemo(() => (s.caseData ? buildEvidence(s.caseData, s.turns, s.agents) : []), [s.caseData, s.turns, s.agents])
+  const evidence = useMemo(
+    () => (s.caseData ? buildEvidence(s.caseData, s.turns, s.agents, s.submittedEvidence) : []),
+    [s.caseData, s.turns, s.agents, s.submittedEvidence],
+  )
   const seen = useMemo(() => new Set(save.seenEvidence), [save.seenEvidence])
   const freshCount = evidence.filter((c) => c.unlocked && c.kind !== 'fact' && !seen.has(c.id)).length
   const knownTestimony = useRef<Set<string> | null>(null)
@@ -244,6 +259,9 @@ export default function CourtroomPage() {
     setCourtPanel('insights')
   }
 
+  // 宽屏（与 xl 断点一致）：发言卡与出席名单移到舞台右侧，舞台按剩余高度铺满，不再两侧留白
+  const wide = useMediaQuery('(min-width: 80rem)', true)
+
   const celebrating = !!s.verdict && !!s.done
   const [rainOn, setRainOn] = useState(false)
   useEffect(() => {
@@ -253,100 +271,137 @@ export default function CourtroomPage() {
     return () => clearTimeout(t)
   }, [celebrating])
 
+  const phaseIndex = Math.max(0, currentStep)
+  const phaseLabel = steps[phaseIndex] ?? '开庭'
+  const phaseTitle = s.phase?.label ?? (currentStep < 0 ? '等待开庭' : phaseLabel)
+  const accent = phaseAccent(phaseLabel)
+  const liveState = s.done ? 'done' : s.awaiting ? 'await' : s.paused ? 'paused' : s.connected ? 'live' : 'connecting'
+  const liveChip: Record<typeof liveState, { cls: string; dot: string; text: string }> = {
+    live: { cls: 'border-jade-700 bg-jade-700/20 text-jade-300', dot: 'bg-jade-300 shadow-[0_0_6px_#7fd9ad] animate-blink-step', text: '直播中' },
+    await: { cls: 'border-gold-600 bg-gold-600/15 text-gold-300', dot: 'bg-gold-400 shadow-[0_0_6px_#e2b25a] animate-blink-step', text: '等你发言' },
+    paused: { cls: 'border-gold-600 bg-gold-600/15 text-gold-300', dot: 'bg-gold-400', text: '休庭中' },
+    done: { cls: 'text-ink-300', dot: 'bg-ink-400', text: '已闭庭' },
+    connecting: { cls: 'text-ink-400', dot: 'bg-ink-300 animate-blink-step', text: '连接中' },
+  }
+  const live = liveChip[liveState]
+
   return (
     <div className="court-shell flex min-h-screen flex-col xl:h-screen xl:min-h-0 xl:overflow-hidden">
-      <header className="sticky top-0 z-50 shrink-0 border-b border-white/7 bg-ink-950/84 shadow-[0_14px_50px_-34px_rgba(0,0,0,.9)] backdrop-blur-2xl xl:static">
-        <div className="mx-auto flex h-16 max-w-[1920px] items-center gap-3 px-3 sm:gap-4 sm:px-5">
-          <Link to="/" className="btn-ghost min-h-11 min-w-11 shrink-0 px-2.5 sm:px-3">
-            <PxlKitIcon icon={ArrowRight} size={14} appearance="solid" color="#ced3dd" style={{ transform: 'scaleX(-1)' }} aria-label="返回" />
-            <span className="hidden sm:inline">新案件</span>
+      {/* 顶栏与卷宗页同款：护墙板 + 法槌 logo；右侧换成庭审专属的计时 / 模式 / 直播状态 */}
+      <TopBar
+        className="sticky top-0 z-40 xl:static"
+        leading={
+          <Link to="/" className="btn-ghost h-9 shrink-0 px-2.5" title="回大厅换一个剧本">
+            <ArrowLeft size={13} /> <span className="hidden sm:inline">大厅</span>
           </Link>
-          <div className="h-7 w-px bg-white/8" />
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="pixel-text text-[14px] tracking-[0.12em] text-gold-300 sm:text-[16px]">HEIR ARENA</div>
-              <span className="hidden rounded-full border border-gold-500/20 bg-gold-500/8 px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-widest text-gold-400 sm:inline">LIVE COURT</span>
+        }
+        center={
+          <span className="chip ml-3 max-w-[38vw] truncate text-ink-300">
+            <span className="text-gold-400">庭审</span>
+            {s.caseData
+              ? <>{s.caseData.decedent_name}的遗产</>
+              : <span className="text-ink-400">正在连接听证庭…</span>}
+          </span>
+        }
+        trailing={
+          <>
+            <CourtHud
+              className="hidden md:flex"
+              elapsed={elapsed}
+              estate={s.legal?.estate_total}
+              roman={currentStep < 0 ? '·' : ROMAN[phaseIndex] ?? String(phaseIndex + 1)}
+              phase={phaseTitle}
+              accent={accent}
+            />
+            {s.caseData && (
+              <span className={`chip hidden lg:inline-flex ${s.mode === 'llm' ? 'border-jade-700 bg-jade-700/20 text-jade-300' : 'border-gold-600 bg-gold-600/15 text-gold-300'}`} title={s.mode === 'llm' ? '角色由模型驱动' : '角色使用内置剧本发言'}>
+                <PxlKitIcon icon={Robot} size={12} appearance="solid" color={s.mode === 'llm' ? '#7fd9ad' : '#f3d38a'} />
+                <span className="max-w-[160px] truncate">{s.mode === 'llm' ? s.model : '剧本演示'}</span>
+              </span>
+            )}
+            <span className={`chip ${live.cls}`} role="status">
+              <span className={`h-2 w-2 ${live.dot}`} aria-hidden />
+              <span className="hidden sm:inline">{live.text}</span>
+            </span>
+          </>
+        }
+      />
+
+      {/* phase rail：与卷宗页的章节条同构——左侧当前幕，右侧步骤格与庭审操作 */}
+      <nav className="shrink-0 border-b-2 border-ink-700 bg-ink-900/80" aria-label="庭审进程">
+        <div className="mx-auto flex max-w-[1600px] min-[1920px]:max-w-[1900px] min-[2400px]:max-w-[2300px] items-center gap-3 px-3 py-2 sm:px-5">
+          <div className="hidden min-w-0 items-center gap-3 sm:flex">
+            <div className="pixel-text flex h-10 w-10 shrink-0 items-center justify-center border-2 text-[20px] shadow-[3px_3px_0_rgba(0,0,0,.55)]"
+              style={{ borderColor: accent, background: `${accent}1f`, color: accent }}>
+              {currentStep < 0 ? '·' : ROMAN[phaseIndex] ?? phaseIndex + 1}
             </div>
-            <div className="max-w-[36vw] truncate text-[11px] text-ink-400 sm:max-w-md">
-              {s.caseData ? `${s.caseData.decedent_name}的遗产听证会 · 净额 ${s.legal?.estate_total ?? '—'} 万元` : '正在连接听证庭…'}
+            <div className="min-w-0">
+              <div className="eyebrow text-[11px]">
+                <span className="h-2 w-2" style={{ background: accent }} aria-hidden />
+                PHASE {currentStep < 0 ? '—' : `${phaseIndex + 1}/${steps.length}`}
+                {s.phase?.round ? <span className="text-ink-400">· ROUND {s.phase.round}</span> : null}
+              </div>
+              <h2 className="pixel-text truncate text-[20px] leading-6 text-ink-100">{phaseTitle}</h2>
             </div>
           </div>
 
-          <div className="mx-auto hidden min-w-0 flex-1 justify-center xl:flex">
+          <div className="no-scrollbar min-w-0 flex-1 overflow-x-auto sm:ml-auto sm:flex-none">
             <PhaseRail steps={steps} current={currentStep} />
           </div>
 
-          <div className="ml-auto flex shrink-0 items-center gap-2 text-xs">
-            <span className="chip hidden px-2.5 py-1 font-mono text-ink-300 md:inline-flex" title="庭审已进行">
-              <span className="text-gold-400" aria-hidden>◷</span> {elapsed}
-            </span>
-            <PixelButton
+          <div className="flex shrink-0 items-center gap-2">
+            <button
               type="button"
-              variant="ghost"
-              className={`chip relative min-h-11 min-w-11 px-2.5 py-1 transition hover:border-gold-600 hover:text-gold-300 ${courtPanel === 'docket' ? 'border-gold-600 text-gold-300' : 'text-ink-300'}`}
+              className={`btn-ghost relative h-9 px-2.5 ${courtPanel === 'docket' ? 'border-gold-600 text-gold-300' : ''}`}
               onClick={() => { sfx('open'); setCourtPanel((panel) => panel === 'docket' ? null : 'docket') }}
               aria-haspopup="dialog"
               aria-expanded={courtPanel === 'docket'}
               aria-label={`案件卷宗${freshCount > 0 ? `，${freshCount} 条新证据` : ''}`}
               title="案件时间线与证据卷宗"
             >
-              <PxlKitIcon icon={LootChest} size={13} /> <span className="hidden sm:inline">卷宗</span>
+              <PxlKitIcon icon={LootChest} size={14} /> <span className="hidden sm:inline">卷宗</span>
               {freshCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center border border-ink-950 bg-seal-500 px-0.5 font-mono text-[9px] text-white">
+                <span className="pixel-text absolute -top-2 -right-2 flex h-4 min-w-4 items-center justify-center border-2 border-ink-950 bg-seal-500 px-1 text-[10px] leading-3 text-white shadow-[1.5px_1.5px_0_rgba(0,0,0,.6)]">
                   {freshCount}
                 </span>
               )}
-            </PixelButton>
-            <PixelButton
+            </button>
+            <button
               type="button"
-              variant="ghost"
-              className={`chip relative min-h-11 min-w-11 px-2.5 py-1 transition hover:border-gold-600 hover:text-gold-300 ${courtPanel === 'insights' ? 'border-gold-600 text-gold-300' : 'text-ink-300'}`}
+              className={`btn-ghost relative h-9 px-2.5 ${courtPanel === 'insights' ? 'border-gold-600 text-gold-300' : ''}`}
               onClick={() => { sfx('open'); setCourtPanel((panel) => panel === 'insights' ? null : 'insights') }}
               aria-haspopup="dialog"
               aria-expanded={courtPanel === 'insights'}
               aria-label={s.awaiting ? '洞察，轮到你发言' : s.verdict ? '洞察，裁决已送达' : s.debrief ? '洞察，复盘已生成' : '洞察'}
               title="庭审记录、关系、份额与裁决"
             >
-              <PxlKitIcon icon={Star} size={13} /> <span className="hidden sm:inline">洞察</span>
+              <PxlKitIcon icon={Star} size={14} /> <span className="hidden sm:inline">洞察</span>
               {(s.awaiting || s.verdict || s.debrief) && (
-                <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-gold-300 shadow-[0_0_8px_#e2b25a]" aria-hidden />
+                <span className="absolute -top-1 -right-1 h-2 w-2 border border-ink-950 bg-gold-400 shadow-[0_0_8px_#e2b25a]" aria-hidden />
               )}
-            </PixelButton>
+            </button>
             {/* 暂停 / 续庭：后端 LangGraph interrupt 在下一节点生效，恢复后从 Checkpointer 继续 */}
             {s.seat && !s.done && <SeatToggle sessionId={id} />}
             {!s.done && s.connected && !s.awaiting && (
-              <PixelButton
+              <button
                 type="button"
-                variant="ghost"
-                className={`chip min-h-11 min-w-11 px-2.5 py-1 transition ${s.paused ? 'border-emerald-400/25 bg-emerald-400/8 text-emerald-300 hover:bg-emerald-400/14' : 'text-ink-300 hover:border-white/15 hover:text-ink-100'}`}
+                className={`btn-ghost h-9 px-2.5 ${s.paused ? 'border-jade-700 bg-jade-700/20 text-jade-300 hover:border-jade-500' : ''}`}
                 disabled={pausing}
                 onClick={() => togglePause()}
                 title={s.paused ? '从检查点继续庭审' : '在当前发言结束后暂停庭审'}>
                 <span aria-hidden>{pausing ? '⋯' : s.paused ? '▶' : 'Ⅱ'}</span>
                 <span className="hidden sm:inline">{s.paused ? '续庭' : '休庭'}</span>
-              </PixelButton>
+              </button>
             )}
-            {s.paused && !s.done && (
-              <span className="chip border-amber-400/25 bg-amber-400/8 px-2 py-1 text-amber-300">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" /> 休庭中
-              </span>
-            )}
-            <span className={`chip px-2.5 py-1 ${s.connected ? 'border-emerald-400/20 bg-emerald-400/5 text-emerald-300' : 'text-ink-400'}`}>
-              {s.connected && !s.done
-                ? <AnimatedPxlKitIcon icon={PulsingDot} size={12} appearance="tinted" color="#34d399" aria-label="直播中" />
-                : <span className={`h-1.5 w-1.5 rounded-full ${s.done ? 'bg-ink-400' : 'bg-amber-400'}`} />}
-              <span className="hidden sm:inline">{s.done ? '已闭庭' : s.awaiting ? '等你发言' : s.paused ? '休庭' : s.connected ? '直播中' : '连接中'}</span>
-            </span>
           </div>
         </div>
-        <div className="no-scrollbar overflow-x-auto border-t border-white/5 px-3 py-2 xl:hidden">
-          <PhaseRail steps={steps} current={currentStep} compact />
-        </div>
-      </header>
+      </nav>
 
-      <main className="relative mx-auto flex min-h-0 w-full max-w-[1680px] flex-1 flex-col gap-3 p-3 sm:p-4">
-        {/* 舞台优先：卷宗与洞察进入覆盖式抽屉，永远不再挤压表演区。 */}
-        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <main className="relative mx-auto flex min-h-0 w-full max-w-[1600px] min-[1920px]:max-w-[1900px] min-[2400px]:max-w-[2300px] flex-1 flex-col gap-3 px-3 py-3 sm:px-5">
+        {/* 舞台优先：卷宗与洞察进入覆盖式抽屉，永远不再挤压表演区。
+            窄屏纵向堆叠：舞台 → 发言 → 出席 → 操作条；
+            宽屏两栏：左栏舞台 + 操作条，右栏发言卡 + 出席名单（与卷宗页"主内容 + 右侧栏"同构）。 */}
+        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] min-[1920px]:grid-cols-[minmax(0,1fr)_420px] min-[2400px]:grid-cols-[minmax(0,1fr)_480px] xl:grid-rows-[minmax(0,1fr)_auto]">
           {/* 闭庭撒币：覆盖舞台与横幅区，6 秒后自动收场 */}
           <AnimatePresence>
             {celebrating && rainOn && (
@@ -356,87 +411,101 @@ export default function CourtroomPage() {
             )}
           </AnimatePresence>
 
-          {/* stage：桌面端占满剩余高度，舞台按高度自适应；左下角是证据宝箱 */}
-          <div className="panel-elevated relative flex flex-none p-2 sm:p-2.5 xl:min-h-0 xl:flex-1">
-            <CourtroomScene />
-            {s.caseData && (
-              <PixelButton type="button" variant="ghost" onClick={() => openChest()} title="证据宝箱 · 点开看全部证据卡牌"
-                className="group absolute bottom-4 left-4 z-10 flex min-h-11 items-center gap-2 border-2 border-gold-600 bg-ink-950/85 px-2.5 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,.6)] backdrop-blur transition hover:-translate-x-px hover:-translate-y-px hover:border-gold-400">
-                <span className={`block ${freshCount > 0 ? 'animate-bob' : ''}`}>
-                  <PxlKitIcon icon={LootChest} size={26} aria-hidden />
-                </span>
-                <span className="text-left leading-tight">
-                  <span className="pixel-text block text-[12px] text-gold-300">证据宝箱</span>
-                  <span className="block font-mono text-[9px] text-ink-400">{evidence.filter((c) => c.unlocked).length}/{evidence.length} 已浮出</span>
-                </span>
-                {freshCount > 0 && (
-                  <motion.span key={freshCount} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 16 }}
-                    className="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center border-2 border-ink-950 bg-seal-500 px-1 font-mono text-[10px] font-bold text-white shadow-[1.5px_1.5px_0_rgba(0,0,0,.6)]">
-                    {freshCount}
-                  </motion.span>
-                )}
-              </PixelButton>
-            )}
-            <AnimatePresence>
-              {celebrating && (
-                <motion.div
-                  key="celebrate"
-                  className="absolute right-3 bottom-3 z-20 flex max-w-[calc(100%-6rem)] items-center gap-2 border-2 border-gold-600 bg-ink-950/92 px-2 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,.65)] sm:right-4 sm:bottom-4 sm:max-w-[380px] sm:gap-3 sm:px-3 sm:py-2"
-                  initial={{ opacity: 0, x: 12, scale: 0.96 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: 12, scale: 0.96 }}
-                  transition={{ type: 'spring', stiffness: 260, damping: 27 }}
-                >
-                  <AnimatedPxlKitIcon icon={SparkBurst} size={24} appearance="palette" className="absolute -top-3 -left-3 opacity-60" aria-hidden />
-                  <SafeVoxelStage
-                    icon={Trophy}
-                    size={58}
-                    spin={0.6}
-                    bob={0.08}
-                    glow="rgba(233,190,111,.3)"
-                    fallbackLabel="闭庭奖杯"
-                  />
-                  <div className="min-w-0 text-left">
-                    <div className="gold-text pixel-text truncate text-[15px] tracking-[0.16em] sm:text-[17px]">COURT ADJOURNED</div>
-                    <div className="mt-1 hidden text-[10px] leading-4 text-ink-400 sm:block">本庭已闭 · 最终裁决已送达洞察卷宗 · 显灵 {save.casts} 次</div>
-                  </div>
-                </motion.div>
+          {/* stage：舞台自带木框，桌面端占满左栏剩余高度并按比例居中；宝箱与闭庭横幅挂在画框内。
+              舞台绝对定位在这个格子里：格子的尺寸只由网格 / 视口决定，永远不会被舞台自身的内容尺寸反向撑大
+              （否则矮屏下 1fr 行会被撑到溢出）。堆叠布局下格子按 1200:700 撑出高度。 */}
+          <div className="relative aspect-[1200/700] min-h-0 min-w-0 xl:aspect-auto xl:col-start-1 xl:row-start-1">
+            <div className="absolute inset-0">
+            <CourtroomScene>
+              {s.caseData && (
+                <PixelButton type="button" variant="ghost" onClick={() => openChest()} title="证据宝箱 · 点开看全部证据卡牌"
+                  className="group absolute bottom-3 left-3 z-[830] flex min-h-11 items-center gap-2 border-2 border-gold-600 bg-ink-950 px-2.5 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,.6)] transition hover:-translate-x-px hover:-translate-y-px hover:border-gold-400 max-sm:top-11 max-sm:bottom-auto max-sm:min-h-9 max-sm:px-1.5 max-sm:py-1 sm:bottom-4 sm:left-4">
+                  <span className={`block ${freshCount > 0 ? 'animate-bob' : ''}`}>
+                    <PxlKitIcon icon={LootChest} size={26} aria-hidden />
+                  </span>
+                  <span className="text-left leading-tight max-sm:hidden">
+                    <span className="pixel-text block text-[12px] text-gold-300">证据宝箱</span>
+                    <span className="block font-mono text-[9px] text-ink-400">{evidence.filter((c) => c.unlocked).length}/{evidence.length} 已浮出</span>
+                  </span>
+                  {freshCount > 0 && (
+                    <motion.span key={freshCount} initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 16 }}
+                      className="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center border-2 border-ink-950 bg-seal-500 px-1 font-mono text-[10px] font-bold text-white shadow-[1.5px_1.5px_0_rgba(0,0,0,.6)]">
+                      {freshCount}
+                    </motion.span>
+                  )}
+                </PixelButton>
               )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {celebrating && (
+                  <motion.div
+                    key="celebrate"
+                    className="absolute right-3 bottom-3 z-[840] flex max-w-[calc(100%-6rem)] items-center gap-2 border-2 border-gold-600 bg-ink-950/92 px-2 py-1.5 shadow-[3px_3px_0_rgba(0,0,0,.65)] max-sm:top-11 max-sm:bottom-auto sm:right-4 sm:bottom-4 sm:max-w-[380px] sm:gap-3 sm:px-3 sm:py-2"
+                    initial={{ opacity: 0, x: 12, scale: 0.96 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 12, scale: 0.96 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 27 }}
+                  >
+                    <AnimatedPxlKitIcon icon={SparkBurst} size={24} appearance="palette" className="absolute -top-3 -left-3 opacity-60" aria-hidden />
+                    <SafeVoxelStage
+                      icon={Trophy}
+                      size={58}
+                      spin={0.6}
+                      bob={0.08}
+                      glow="rgba(233,190,111,.3)"
+                      fallbackLabel="闭庭奖杯"
+                    />
+                    <div className="min-w-0 text-left">
+                      <div className="gold-text pixel-text truncate text-[15px] tracking-[0.16em] sm:text-[17px]">COURT ADJOURNED</div>
+                      <div className="mt-1 hidden text-[10px] leading-4 text-ink-400 sm:block">本庭已闭 · 最终裁决已送达洞察卷宗 · 显灵 {save.casts} 次</div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CourtroomScene>
+            </div>
           </div>
 
-          <ActiveTestimony
-            turn={stageTurn}
-            agent={stageAgent}
-            status={stageStatus}
-            phaseLabel={s.phase?.label}
-            targetName={stageTarget}
-            onOpenTranscript={openTranscript}
-          />
-
-          {/* roster：一条窄带，谁在发言谁亮；裁决前点卡片押"谁拿大头" */}
-          <AgentRoster
-            agents={debaters}
-            statuses={s.statuses}
-            turns={s.turns}
-            betId={bet}
-            bettingLocked={!!s.verdict}
-            onBet={placeBet}
-          />
-
-          {s.seat ? (
-            <SeatDock
-              sessionId={id}
-              draft={draft}
-              onDraftChange={setDraft}
-              onOpenBrief={() => { setTab('seat'); setCourtPanel('insights') }}
-              cardsSlot={s.awaiting ? <SpeechCardChips cards={s.cards} onUse={(card) => setDraft((d) => applyCardToDraft(d, card))} /> : undefined}
+          {/* 右侧栏（宽屏）/ 舞台下方（窄屏）：当前发言 + 出席名单 */}
+          <aside className="flex min-h-0 flex-col gap-3 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+            <ActiveTestimony
+              turn={stageTurn}
+              agent={stageAgent}
+              status={stageStatus}
+              phaseLabel={s.phase?.label}
+              targetName={stageTarget}
+              onOpenTranscript={openTranscript}
+              layout={wide ? 'stacked' : 'wide'}
             />
-          ) : !s.done ? (
-            <ActionBar sessionId={id} caseData={s.caseData} agents={s.agents} turns={s.turns} done={!!s.done}
-              onPickEvidence={() => { setCourtPanel(null); setDrawer({ open: true, pick: true }) }}
-              pickedEvidence={pickedEvidence} onPickedHandled={() => setPickedEvidence(null)} />
-          ) : null}
+
+            {/* roster：谁在发言谁亮；裁决前点卡片押"谁拿大头" */}
+            <AgentRoster
+              agents={debaters}
+              statuses={s.statuses}
+              turns={s.turns}
+              betId={bet}
+              bettingLocked={!!s.verdict}
+              onBet={placeBet}
+              orientation={wide ? 'vertical' : 'horizontal'}
+            />
+          </aside>
+
+          {(s.seat || !s.done) && (
+            <div className="xl:col-start-1 xl:row-start-2">
+              {s.seat ? (
+                <SeatDock
+                  sessionId={id}
+                  draft={draft}
+                  onDraftChange={setDraft}
+                  onOpenBrief={() => { setTab('seat'); setCourtPanel('insights') }}
+                  cardsSlot={s.awaiting ? <SpeechCardChips cards={s.cards} onUse={(card) => setDraft((d) => applyCardToDraft(d, card))} /> : undefined}
+                />
+              ) : (
+                <ActionBar sessionId={id} caseData={s.caseData} agents={s.agents} turns={s.turns} done={!!s.done}
+                  onPickEvidence={() => { setCourtPanel(null); setDrawer({ open: true, pick: true }) }}
+                  pickedEvidence={pickedEvidence} onPickedHandled={() => setPickedEvidence(null)} />
+              )}
+            </div>
+          )}
         </section>
       </main>
 
@@ -459,6 +528,7 @@ export default function CourtroomPage() {
               relationLog={s.relationLog}
               ghosts={s.ghosts}
               notices={s.notices}
+              evidence={s.submittedEvidence}
               gavelAt={s.gavelAt}
               verdictAt={s.verdictAt}
               agents={s.agents}
@@ -546,11 +616,11 @@ export default function CourtroomPage() {
             <div className="p-3 sm:p-4">
               {!s.caseData || !s.legal ? (
                 <div className="flex min-h-72 flex-col items-center justify-center text-center">
-                  <div className="relative mb-4 flex h-12 w-12 items-center justify-center border-2 border-gold-500/20 bg-gold-500/8">
+                  <div className="relative mb-4 flex h-12 w-12 items-center justify-center border-2 border-gold-600 bg-ink-950 shadow-[2px_2px_0_rgba(0,0,0,.55)]">
                     <PxlKitIcon icon={Scroll} size={22} />
-                    <span className="absolute inset-0 animate-ping border border-gold-400/15" />
+                    <span className="absolute inset-0 animate-pulse-ring border-2 border-gold-400/40" />
                   </div>
-                  <div className="text-sm font-semibold text-ink-200">正在传唤各位继承人</div>
+                  <div className="pixel-text text-[14px] text-ink-200">正在传唤各位继承人</div>
                   <div className="mt-1 text-xs text-ink-400">执行官正在核对卷宗与法定份额…</div>
                 </div>
               ) : (
@@ -631,31 +701,49 @@ function RailTitle({ icon, title, right }: { icon: React.ReactNode; title: strin
   )
 }
 
-function PhaseRail({ steps, current, compact = false }: { steps: string[]; current: number; compact?: boolean }) {
+/* 庭审进程：与卷宗页章节按钮同款的方形步骤格；已过的幕打勾，当前幕亮底色并带下划线 */
+function PhaseRail({ steps, current }: { steps: string[]; current: number }) {
   return (
-    <ol className={`flex items-center ${compact ? 'min-w-max justify-center' : 'justify-center'}`}>
+    <ol className="flex min-w-max items-center gap-1.5 sm:gap-2" aria-label="庭审进程步骤">
       {steps.map((label, i) => {
         const active = i === current
         const done = i < current
+        const accent = phaseAccent(label)
         return (
           <li key={label} className="flex items-center">
-            <div aria-current={active ? 'step' : undefined}
-              className={`relative flex items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${active
-                ? 'text-ink-950'
-                : done ? 'text-ink-200' : 'text-ink-400'}`}>
-              {active && (
-                <motion.span layoutId={compact ? 'phase-pill-compact' : 'phase-pill'} className="absolute inset-0 -z-10 rounded-full bg-gold-500 shadow-[0_0_18px_rgba(214,162,78,.34)]"
-                  transition={{ type: 'spring', stiffness: 380, damping: 32 }} />
-              )}
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full border font-mono text-[8px] ${active
-                ? 'border-ink-950/20 bg-ink-950/10'
-                : done ? 'border-gold-500/30 bg-gold-500/10 text-gold-300' : 'border-white/8'}`}>
-                {i + 1}
+            <div
+              aria-current={active ? 'step' : undefined}
+              className={`relative flex shrink-0 items-center gap-2 border-2 px-2 py-1.5 transition ${active
+                ? 'border-ink-400 bg-ink-800 shadow-[3px_3px_0_rgba(0,0,0,.55)]'
+                : 'border-ink-700 bg-ink-950'}`}
+            >
+              <span
+                className="pixel-text flex h-6 w-6 shrink-0 items-center justify-center border-2 text-[12px]"
+                style={{
+                  borderColor: active || done ? accent : 'var(--color-ink-600)',
+                  background: active ? `${accent}26` : done ? `${accent}18` : 'transparent',
+                  color: active || done ? accent : 'var(--color-ink-400)',
+                }}
+              >
+                {done ? <Check size={12} strokeWidth={3} /> : i + 1}
               </span>
-              {label}
+              <span
+                className="pixel-text hidden text-[12px] leading-4 lg:block"
+                style={{ color: active ? 'var(--color-ink-100)' : done ? 'var(--color-ink-200)' : 'var(--color-ink-400)' }}
+              >
+                {label}
+              </span>
+              {active && (
+                <motion.span
+                  layoutId="phase-underline"
+                  className="absolute inset-x-2 -bottom-0.5 h-0.5"
+                  style={{ background: accent }}
+                  transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                />
+              )}
             </div>
             {i < steps.length - 1 && (
-              <span className={`mx-0.5 h-px w-3 transition-colors sm:mx-1 sm:w-5 ${done ? 'bg-gold-500/50' : 'bg-white/8'}`} />
+              <span className={`mx-0.5 h-0.5 w-2 sm:w-3 ${done ? 'bg-gold-600' : 'bg-ink-700'}`} aria-hidden />
             )}
           </li>
         )

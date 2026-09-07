@@ -45,7 +45,7 @@ function WhatIfRecap({ rows }: { rows: WhatIfDelta[] }) {
   return (
     <ul className="space-y-1.5">
       {rows.map((row) => (
-        <li key={`${row.key}-${row.subject_id}`} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/8 bg-black/15 px-2.5 py-1.5 text-[11px]">
+        <li key={`${row.key}-${row.subject_id}`} className="panel-inset flex flex-wrap items-center gap-2 px-2.5 py-1.5 text-[11px]">
           <span className="text-ink-200">{row.label}</span>
           <PixelBadge size="sm" tone={row.direction === 'favorable' ? 'green' : 'red'} variant="soft">
             {row.delta_pct >= 0 ? '+' : ''}{row.delta_pct.toFixed(1)}%

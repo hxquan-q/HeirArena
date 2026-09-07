@@ -8,20 +8,23 @@ import type { Provider } from '../../types'
 import { Gavel as PixelGavel } from '../icons/pixel'
 
 interface Props {
-  config: ServerConfig | null
-  providers: Provider[]
-  onManageProviders: () => void
+  config?: ServerConfig | null
+  providers?: Provider[]
+  onManageProviders?: () => void
   /** 左侧品牌之前的插槽（例如「返回大厅」） */
   leading?: ReactNode
   /** 品牌右侧的插槽（例如当前卷宗名） */
   center?: ReactNode
+  /** 右侧插槽：给出时替换默认的模式徽章（音效开关始终保留） */
+  trailing?: ReactNode
+  className?: string
 }
 
-export default function TopBar({ config, providers, onManageProviders, leading, center }: Props) {
+export default function TopBar({ config = null, providers = [], onManageProviders, leading, center, trailing, className = '' }: Props) {
   return (
-    <header className="relative z-30 shrink-0 border-b-2 border-ink-700 bg-ink-900">
+    <header className={`relative z-30 shrink-0 border-b-2 border-ink-700 bg-ink-900 ${className}`}>
       <div className="wainscot h-2 w-full" aria-hidden />
-      <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-3 px-3 sm:px-5">
+      <div className="mx-auto flex h-14 max-w-[1600px] min-[1920px]:max-w-[1900px] min-[2400px]:max-w-[2300px] items-center gap-3 px-3 sm:px-5">
         {leading}
         <Link to="/" className="flex min-w-0 items-center gap-2.5" aria-label="回到大厅">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center border-2 border-gold-600 bg-ink-950 shadow-[2px_2px_0_#000]">
@@ -34,11 +37,13 @@ export default function TopBar({ config, providers, onManageProviders, leading, 
         </Link>
         {center && <div className="hidden min-w-0 items-center md:flex">{center}</div>}
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <ModeBadge config={config} providers={providers} />
+          {trailing ?? <ModeBadge config={config} providers={providers} />}
           <SfxToggle />
-          <button className="btn-ghost h-9 px-2.5" onClick={onManageProviders}>
-            <Plug size={13} /> <span className="hidden sm:inline">模型供应商</span>
-          </button>
+          {onManageProviders && (
+            <button className="btn-ghost h-9 px-2.5" onClick={onManageProviders}>
+              <Plug size={13} /> <span className="hidden sm:inline">模型供应商</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

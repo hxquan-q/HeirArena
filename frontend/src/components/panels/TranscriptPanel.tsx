@@ -76,14 +76,14 @@ export default function TranscriptPanel({ turns, agents, ghosts, decedent, focus
     <div ref={ref} className="h-full space-y-3 overflow-y-auto pr-1 text-sm">
       {focusIssues && focusIssues.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
-          className="rounded-xl border border-gold-500/20 bg-gold-500/6 px-3 py-2.5">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] text-gold-300">
+          className="panel-inset border-gold-600 px-3 py-2.5">
+          <div className="pixel-text mb-1.5 flex items-center gap-1.5 text-[12px] tracking-[0.08em] text-gold-300">
             <Crosshair size={12} /> 本庭争议焦点
           </div>
           <ol className="space-y-0.5">
             {focusIssues.map((f, i) => (
               <li key={i} className="flex gap-1.5 text-xs leading-relaxed text-ink-200">
-                <span className="font-mono text-[10px] text-gold-400">{i + 1}.</span>{f}
+                <span className="pixel-text text-[12px] text-gold-400">{i + 1}.</span>{f}
               </li>
             ))}
           </ol>
@@ -101,8 +101,8 @@ export default function TranscriptPanel({ turns, agents, ghosts, decedent, focus
         if (it.kind === 'ghost') {
           return (
             <motion.div key={`g${it.ts}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
-              className="mx-2 rounded-xl border border-violet-400/30 bg-violet-950/40 px-3 py-2 text-xs text-violet-100">
-              👻 <b>{decedent} 的幽灵</b>：{it.text}
+              className="mx-2 border-2 border-ghost-700 bg-ink-950 px-3 py-2 text-xs text-ink-100 shadow-[2px_2px_0_rgba(0,0,0,.55)]">
+              👻 <b className="pixel-text text-[12px] text-ghost-300">{decedent} 的幽灵</b>：{it.text}
             </motion.div>
           )
         }
@@ -112,24 +112,29 @@ export default function TranscriptPanel({ turns, agents, ghosts, decedent, focus
         const action = t.meta ? ACTION_STYLE[t.meta.action] : null
         return (
           <motion.div key={t.turn_id} data-turn={t.turn_id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
-            className={`flex gap-2.5 rounded-lg p-1 -m-1 transition-colors ${highlightTurnId === t.turn_id ? 'bg-violet-400/10 ring-1 ring-violet-400/30' : ''}`}>
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-              style={{ background: `${a?.color ?? '#5b647a'}22`, color: a?.color ?? '#8b93a7', border: `1px solid ${a?.color ?? '#5b647a'}66` }}>
+            className={`-m-1 flex gap-2.5 p-1 transition-colors ${highlightTurnId === t.turn_id ? 'bg-ghost-700/25 outline-2 outline-ghost-400' : ''}`}>
+            {/* 方形头像格：与出席名单的立绘格同款 */}
+            <div className="pixel-text mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border-2 bg-ink-950 text-[13px] shadow-[2px_2px_0_rgba(0,0,0,.55)]"
+              style={{ color: a?.color ?? '#a08d78', borderColor: a?.color ?? '#55443a' }}>
               {a?.kind === 'judge' ? '⚖' : a?.kind === 'pet' ? '🐾' : a?.kind === 'ai' ? '🤖' : (a?.name ?? '?').slice(0, 1)}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="font-semibold" style={{ color: a?.color }}>{a?.name ?? t.agent_id}</span>
+                <span className="pixel-text text-[13px]" style={{ color: a?.color }}>{a?.name ?? t.agent_id}</span>
                 <span className="text-ink-400">{a?.role}</span>
-                <span className="chip text-[10px] text-ink-300">{PHASE_LABEL[t.phase] ?? t.phase}{t.round ? ` R${t.round}` : ''}</span>
+                <span className="chip py-0 text-[11px] text-ink-300">{PHASE_LABEL[t.phase] ?? t.phase}{t.round ? ` R${t.round}` : ''}</span>
                 {action && (
-                  <span className={`chip text-[10px] ${action.cls}`}>
+                  <span className={`chip py-0 text-[11px] ${action.cls}`}>
                     <PxlKitIcon icon={action.icon} size={11} aria-label={action.label} />
                     {action.label}{target ? ` → ${target.name}` : ''} {t.meta?.emoji}
                   </span>
                 )}
               </div>
-              <div className={`mt-1 rounded-xl rounded-tl-sm px-3 py-2 leading-relaxed ${a?.kind === 'judge' ? 'border border-gold-500/25 bg-gold-500/6 text-ink-100' : 'bg-ink-800/70 text-ink-200'}`}>
+              {/* 对话框：2px 边 + 硬阴影；执行官的话走黄铜边 */}
+              <div className={`relative mt-1.5 border-2 px-3 py-2 leading-relaxed shadow-[2px_2px_0_rgba(0,0,0,.5)] ${a?.kind === 'judge'
+                ? 'border-gold-600 bg-ink-900 text-ink-100'
+                : 'border-ink-700 bg-ink-900 text-ink-200'}`}>
+                <span className={`absolute -top-[6px] left-3 h-2.5 w-2.5 rotate-45 border-t-2 border-l-2 bg-ink-900 ${a?.kind === 'judge' ? 'border-gold-600' : 'border-ink-700'}`} aria-hidden />
                 {t.text || <span className="text-ink-400">…</span>}
                 {!t.done && <span className="ml-0.5 inline-block h-[1em] w-[2px] translate-y-[2px] animate-caret bg-gold-300" />}
               </div>

@@ -37,9 +37,9 @@ export default function ProviderManager({ open, onClose, providers, presets, onC
   return (
     <AnimatePresence>
       {open && (
-        <motion.div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+        <motion.div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/70 p-4"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-          <motion.div className="panel flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden shadow-2xl"
+          <motion.div className="panel-wood flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden bg-ink-800"
             initial={{ y: 24, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 16, opacity: 0 }} onClick={(e) => e.stopPropagation()}>
             {/* 表单状态放在只在打开时挂载的子组件里，关闭即自然重置 */}
             <ManagerBody onClose={onClose} providers={providers} presets={presets} onChanged={onChanged} />
@@ -131,10 +131,10 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
 
   return (
     <>
-      <div className="flex items-center gap-3 border-b border-white/6 px-5 py-3.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-gold-500/25 bg-gold-500/10 text-gold-300"><Plug size={16} /></div>
+      <div className="flex items-center gap-3 border-b-2 border-ink-700 px-5 py-3.5">
+        <div className="flex h-9 w-9 items-center justify-center border-2 border-gold-600 bg-ink-950 text-gold-300 shadow-[2px_2px_0_rgba(0,0,0,.55)]"><Plug size={16} /></div>
         <div>
-          <div className="font-serif text-base font-bold text-ink-100">模型供应商</div>
+          <div className="pixel-text text-[16px] text-ink-100">模型供应商</div>
           <div className="text-[11px] text-ink-400">任何 OpenAI 兼容接口都能接入；Key 只保存在本机 backend/data/providers.json</div>
         </div>
         <button className="btn-ghost ml-auto h-8 px-2" onClick={onClose} aria-label="关闭"><X size={15} /></button>
@@ -144,7 +144,7 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
         {/* list */}
         <div className="min-h-0 overflow-y-auto p-4">
           {providers.length === 0 && !draft && (
-            <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-ink-300">
+            <div className="border-2 border-dashed border-ink-600 p-6 text-center text-sm text-ink-300">
               还没有接入任何供应商。从右侧选择一个预设（DeepSeek、通义、Kimi、OpenAI、Ollama……任何 OpenAI 兼容接口都行），填好 Base URL 和 API Key 即可。
             </div>
           )}
@@ -152,12 +152,12 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
             {providers.map((p) => {
               const r = results[p.id]
               return (
-                <div key={p.id} className="panel-inset rounded-2xl p-3">
+                <div key={p.id} className="panel-inset p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${p.ready ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-amber-400'}`} />
-                    <span className="font-semibold text-ink-100">{p.name}</span>
+                    <span className={`h-2 w-2 ${p.ready ? 'bg-jade-300 shadow-[0_0_8px_#7fd9ad]' : 'bg-gold-400'}`} />
+                    <span className="pixel-text text-[14px] text-ink-100">{p.name}</span>
                     <span className="chip text-[10px] text-ink-300">{presetMap[p.preset]?.name ?? p.preset}</span>
-                    {p.source === 'env' && <span className="chip text-[10px] text-sky-300">来自 .env</span>}
+                    {p.source === 'env' && <span className="chip text-[10px] text-ghost-300">来自 .env</span>}
                     <span className="ml-auto flex items-center gap-1 text-[11px] text-ink-400">
                       <KeyRound size={11} /> {p.api_key_set ? p.api_key_hint : p.ready ? '本地服务，无需 Key' : '未填 Key'}
                     </span>
@@ -169,19 +169,19 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
                   </div>
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     <button className="btn-ghost px-2 py-1 text-[11px]" disabled={!!busy || !p.ready} onClick={() => test(p)}>
-                      {busy === `test:${p.id}` ? <Loader2 size={12} className="animate-spin" /> : <Plug size={12} />} 测试连通
+                      {busy === `test:${p.id}` ? <Loader2 size={12} className="animate-spin-step" /> : <Plug size={12} />} 测试连通
                     </button>
                     <button className="btn-ghost px-2 py-1 text-[11px]" disabled={!!busy || !p.ready} onClick={() => pull(p)}>
-                      {busy === `pull:${p.id}` ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} 拉取模型
+                      {busy === `pull:${p.id}` ? <Loader2 size={12} className="animate-spin-step" /> : <Download size={12} />} 拉取模型
                     </button>
                     <button className="btn-ghost px-2 py-1 text-[11px]" disabled={!!busy} onClick={() => startEdit(p)}>编辑</button>
                     {p.source !== 'env' && (
-                      <button className="btn-ghost px-2 py-1 text-[11px] text-red-300 hover:border-red-400/40" disabled={!!busy} onClick={() => remove(p)}>
+                      <button className="btn-ghost px-2 py-1 text-[11px] text-seal-400 hover:border-seal-700 hover:text-seal-400" disabled={!!busy} onClick={() => remove(p)}>
                         <Trash2 size={12} /> 删除
                       </button>
                     )}
                     {r && (
-                      <span className={`ml-auto flex items-center gap-1 text-[11px] ${'error' in r && r.error ? 'text-red-300' : (r as ProviderTestResult).ok ? 'text-emerald-300' : 'text-red-300'}`}>
+                      <span className={`ml-auto flex items-center gap-1 text-[11px] ${'error' in r && r.error ? 'text-seal-400' : (r as ProviderTestResult).ok ? 'text-jade-300' : 'text-seal-400'}`}>
                         {'error' in r && r.error ? <><XCircle size={12} /> {r.error}</>
                           : (r as ProviderTestResult).ok
                             ? <><CheckCircle2 size={12} /> {(r as ProviderTestResult).latency_ms != null ? `${(r as ProviderTestResult).latency_ms} ms · 回复 “${(r as ProviderTestResult).reply}”` : (r as ProviderTestResult).model}</>
@@ -196,14 +196,14 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
         </div>
 
         {/* form */}
-        <div className="min-h-0 overflow-y-auto border-t border-white/6 p-4 md:border-t-0 md:border-l">
+        <div className="min-h-0 overflow-y-auto border-t-2 border-ink-700 p-4 md:border-t-0 md:border-l-2">
           {!draft ? (
             <>
-              <div className="mb-2 text-[10px] font-semibold tracking-[0.16em] text-ink-400">添加供应商</div>
+              <div className="eyebrow mb-2 text-[11px]">ADD PROVIDER · 添加供应商</div>
               <div className="grid gap-1.5">
                 {presets.map((p) => (
                   <button key={p.id} onClick={() => startNew(p.id)}
-                    className="flex items-center gap-2 panel-inset rounded-xl px-3 py-2 text-left text-xs transition hover:border-gold-500/40 hover:bg-white/[.03]">
+                    className="flex items-center gap-2 panel-inset px-3 py-2 text-left text-xs transition hover:border-gold-600 hover:bg-ink-900">
                     <Plus size={12} className="shrink-0 text-gold-400" />
                     <span className="min-w-0">
                       <span className="block font-semibold text-ink-100">{p.name}</span>
@@ -216,7 +216,7 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
           ) : (
             <div className="space-y-3 text-xs">
               <div className="flex items-center justify-between">
-                <div className="text-[10px] font-semibold tracking-[0.16em] text-ink-400">{draft.id ? '编辑供应商' : '新建供应商'}</div>
+                <div className="eyebrow text-[11px]">{draft.id ? 'EDIT · 编辑供应商' : 'NEW · 新建供应商'}</div>
                 <button className="text-ink-400 hover:text-ink-100" onClick={() => setDraft(null)}><X size={14} /></button>
               </div>
               <label className="block text-ink-300">名称
@@ -233,17 +233,17 @@ function ManagerBody({ onClose, providers, presets, onChanged }: Omit<Props, 'op
               <label className="block text-ink-300">模型 <span className="text-ink-400">（逗号分隔；保存后也可“拉取模型”）</span>
                 <textarea className="input-base mt-1 min-h-[72px] font-mono" value={draft.models} onChange={(e) => setDraft({ ...draft, models: e.target.value })} />
               </label>
-              {presetMap[draft.preset]?.hint && <div className="rounded-lg border border-gold-500/15 bg-gold-500/[.05] p-2 text-[11px] text-ink-300">{presetMap[draft.preset].hint}</div>}
-              {error && <div className="text-red-300">{error}</div>}
+              {presetMap[draft.preset]?.hint && <div className="border-2 border-gold-600/40 bg-gold-600/10 p-2 text-[11px] text-ink-300">{presetMap[draft.preset].hint}</div>}
+              {error && <div className="text-seal-400">{error}</div>}
               <div className="flex gap-2">
                 <button className="btn-gold flex-1 py-2 text-sm" disabled={busy === 'save'} onClick={save}>
-                  {busy === 'save' ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} 保存
+                  {busy === 'save' ? <Loader2 size={14} className="animate-spin-step" /> : <RefreshCw size={14} />} 保存
                 </button>
                 <button className="btn-ghost" onClick={() => setDraft(null)}>取消</button>
               </div>
             </div>
           )}
-          {error && !draft && <div className="mt-3 text-xs text-red-300">{error}</div>}
+          {error && !draft && <div className="mt-3 text-xs text-seal-400">{error}</div>}
         </div>
       </div>
     </>

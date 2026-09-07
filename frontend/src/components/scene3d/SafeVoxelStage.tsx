@@ -10,6 +10,8 @@ export interface SafeVoxelStageProps {
   spin?: number
   glow?: string
   bob?: number
+  snap?: number
+  pixelate?: boolean
   loadingLabel?: string
   fallbackLabel?: string
 }
@@ -20,6 +22,8 @@ export default function SafeVoxelStage({
   spin = 0.5,
   glow,
   bob = 0.06,
+  snap,
+  pixelate,
   loadingLabel = 'LOADING…',
   fallbackLabel = `${icon.name} 2D 图标`,
 }: SafeVoxelStageProps) {
@@ -45,7 +49,7 @@ export default function SafeVoxelStage({
   return (
     <VoxelErrorBoundary fallback={fallback}>
       <Suspense fallback={placeholder}>
-        <VoxelStage icon={icon} size={size} spin={spin} glow={glow} bob={bob} />
+        <VoxelStage icon={icon} size={size} spin={spin} glow={glow} bob={bob} snap={snap} pixelate={pixelate} />
       </Suspense>
     </VoxelErrorBoundary>
   )

@@ -36,11 +36,12 @@ export default function CoinRain({ count = 26 }: { count?: number }) {
       {coins.map((c) => (
         <motion.span
           key={c.id}
-          className="absolute top-0 drop-shadow-[0_4px_6px_rgba(0,0,0,.45)]"
+          className="absolute top-0 drop-shadow-[2px_3px_0_rgba(0,0,0,.45)]"
           style={{ left: `${c.x}%` }}
           initial={{ y: -64, x: 0, opacity: 0 }}
           animate={{ y: 900, x: c.drift, opacity: [0, 1, 1, 0.85] }}
-          transition={{ duration: c.dur, delay: c.delay, ease: 'easeIn' }}
+          /* 重力加速 + 按 30 帧量化：像老游戏一样一格一格往下掉 */
+          transition={{ duration: c.dur, delay: c.delay, ease: (t) => Math.floor(t * t * 30) / 30 }}
         >
           <AnimatedPxlKitIcon icon={CoinSpin} size={c.size} appearance="palette" />
         </motion.span>

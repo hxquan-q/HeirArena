@@ -10,7 +10,8 @@ import type { Turn } from '../../types'
  * 戏剧值 = 攻击×3 + 恳求×2 + 结盟×2 + 让步×1 + 提案×1；
  * 进度条是"火药味"——攻击（含部分恳求）占全部动作的比例。
  */
-export default function DramaMeter({ turns }: { turns: Turn[] }) {
+export default function DramaMeter({ turns, orientation = 'horizontal' }: { turns: Turn[]; orientation?: 'horizontal' | 'vertical' }) {
+  const vertical = orientation === 'vertical'
   const { counts, drama, heat } = useMemo(() => {
     const counts: Record<string, number> = { attack: 0, ally: 0, concede: 0, plead: 0, propose: 0 }
     for (const t of turns) {
@@ -24,7 +25,9 @@ export default function DramaMeter({ turns }: { turns: Turn[] }) {
 
   return (
     <div
-      className="flex shrink-0 flex-col justify-center gap-1 border-l-2 border-ink-700 pl-2.5"
+      className={vertical
+        ? 'flex flex-col gap-1.5'
+        : 'flex shrink-0 flex-col justify-center gap-1 border-l-2 border-ink-700 pl-2.5'}
       title={`攻击 ${counts.attack} · 结盟 ${counts.ally} · 让步 ${counts.concede} · 恳求 ${counts.plead} · 提案 ${counts.propose}`}
     >
       <div className="flex items-center gap-1.5 text-[10px] leading-none">
@@ -41,7 +44,7 @@ export default function DramaMeter({ turns }: { turns: Turn[] }) {
         </motion.span>
         <span className="text-ink-400">⚔{counts.attack} 🤝{counts.ally}</span>
       </div>
-      <div className="w-[104px]">
+      <div className={vertical ? 'w-full' : 'w-[104px]'}>
         <PixelProgress
           value={heat}
           tone={heat > 55 ? 'red' : 'gold'}

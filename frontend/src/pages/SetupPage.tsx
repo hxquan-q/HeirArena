@@ -139,111 +139,110 @@ export default function SetupPage() {
   /* ── chapter bodies ─────────────────────────────────────────── */
 
   const renderFile = () => (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <div className="panel-elevated p-4">
+    <div className="grid h-full min-h-0 gap-3 pr-1 pb-1 max-lg:h-auto lg:grid-cols-2">
+      <div className="panel-elevated flex min-h-0 flex-col overflow-hidden p-3">
         <PanelHeading icon={<Landmark size={16} />} step="01" title="案件背景" subtitle="逝者开口——这段话就是庭上的「公开事实」" />
 
         {/* NPC 对话：左边幽灵化的逝者立绘，右边 RPG 对话框，名牌可直接改名 */}
-        <div className="mt-4 grid gap-4 sm:grid-cols-[120px_minmax(0,1fr)] sm:items-end">
-          <div className="relative mx-auto flex h-[156px] w-[120px] items-end justify-center overflow-hidden border-2 border-ghost-700 bg-[radial-gradient(circle_at_50%_78%,rgba(165,139,255,.28),transparent_68%),linear-gradient(180deg,#1e1712,#17120f)] shadow-[3px_3px_0_rgba(0,0,0,.55)]">
+        <div className="mt-2 grid min-h-0 flex-1 gap-3 pt-3 sm:grid-cols-[104px_minmax(0,1fr)] sm:items-stretch">
+          <div className="relative mx-auto flex h-[128px] w-[104px] items-end justify-center overflow-hidden border-2 border-ghost-700 bg-[radial-gradient(circle_at_50%_78%,rgba(165,139,255,.28),transparent_68%),linear-gradient(180deg,#1e1712,#17120f)] shadow-[3px_3px_0_rgba(0,0,0,.55)] sm:mx-0 sm:h-auto sm:min-h-[128px] sm:w-full">
             <div className="animate-float" style={{ filter: 'sepia(.25) hue-rotate(215deg) saturate(.8) brightness(1.08) drop-shadow(0 0 10px rgba(165,139,255,.45))' }}>
-              <CharacterPortrait agent={decedentAgent(c.decedent_name)} status="idle" size={100} animated={false} />
+              <CharacterPortrait agent={decedentAgent(c.decedent_name)} status="idle" size={tall ? 96 : 80} animated={false} />
             </div>
             <span className="pixel-text absolute top-1.5 left-1.5 text-[11px] text-ghost-300">逝者 · 灵</span>
           </div>
 
-          <div className="relative border-2 border-ink-200 bg-ink-950 px-4 pt-5 pb-6" style={{ boxShadow: 'inset 0 0 0 2px #17120f, inset 0 0 0 3px rgba(224,211,185,.35), 4px 4px 0 rgba(0,0,0,.6)' }}>
-            <label className="absolute -top-4 left-3 flex items-center gap-1.5 border-2 border-ink-200 bg-ink-800 px-2 py-0.5 shadow-[2px_2px_0_rgba(0,0,0,.6)]">
+          <div className="relative flex min-h-[120px] flex-col border-2 border-ink-200 bg-ink-950 px-3 pt-5 pb-5" style={{ boxShadow: 'inset 0 0 0 2px #17120f, inset 0 0 0 3px rgba(224,211,185,.35), 4px 4px 0 rgba(0,0,0,.6)' }}>
+            <label className="absolute -top-3 left-3 flex items-center gap-1.5 border-2 border-ink-200 bg-ink-800 px-2 py-0.5 shadow-[2px_2px_0_rgba(0,0,0,.6)]">
               <span className="pixel-text text-[11px] text-gold-400">NAME</span>
               <input className="pixel-text w-[120px] bg-transparent text-[14px] text-ink-100 outline-none placeholder:text-ink-400" value={c.decedent_name}
                 onChange={(e) => upd({ decedent_name: e.target.value })} placeholder="例如：老王" aria-label="逝者姓名 / 称呼" maxLength={12} />
             </label>
-            <textarea className="min-h-[120px] w-full resize-y bg-transparent text-[14px] leading-7 text-ink-100 outline-none placeholder:text-ink-400"
+            <textarea className="min-h-0 w-full flex-1 resize-none bg-transparent text-[14px] leading-6 text-ink-100 outline-none placeholder:text-ink-400"
               value={c.story} onChange={(e) => upd({ story: e.target.value })} aria-label="剧情设定（公开事实）"
               placeholder="儿子五年没回家，只在借钱时打电话；女儿辞职照顾我三年；我最爱那只猫……" />
-            <span className="pixel-text absolute right-3 bottom-1.5 animate-blink-step text-[12px] text-gold-300" aria-hidden>▼</span>
-            <span className="pixel-text absolute bottom-1.5 left-3 text-[11px] text-ink-400">{c.story.length} 字</span>
+            <span className="pixel-text absolute right-3 bottom-1 animate-blink-step text-[12px] text-gold-300" aria-hidden>▼</span>
+            <span className="pixel-text absolute bottom-1 left-3 text-[11px] text-ink-400">{c.story.length} 字</span>
           </div>
         </div>
 
-        <div className="panel-inset mt-4 p-3 text-xs leading-relaxed text-ink-300">
-          <div className="pixel-text mb-1 flex items-center gap-2 text-[12px] text-gold-300"><Scale size={13} /> 法律提示</div>
-          点名牌可以改称呼。规则引擎会先析出夫妻共同财产，再按继承顺序、扶养义务与特殊情形计算参考份额；对话里写明的照顾、失联、争执会影响角色发言。
+        <div className="panel-inset mt-3 shrink-0 px-2.5 py-2 text-[11px] leading-relaxed text-ink-300">
+          <span className="pixel-text mr-2 inline-flex items-center gap-1 text-[11px] text-gold-300"><Scale size={12} /> 法律提示</span>
+          点名牌改称呼。对话里写明的照顾、失联、争执会影响角色发言；规则引擎再按继承顺序与扶养义务算出参考份额。
         </div>
       </div>
 
-      <div className="panel-elevated space-y-3 p-4">
+      <div className="panel-elevated flex min-h-0 flex-col overflow-hidden p-3">
         <PanelHeading icon={<Gavel size={16} />} step="02" title="庭审规则" subtitle="节奏、酌情与模型分配" />
-        <div className="space-y-2 text-xs font-medium text-ink-300">
-          <div className="flex items-center justify-between">
-            <span>辩论轮数</span>
-            <span className="pixel-text text-[12px] text-gold-300">{c.rounds} ROUNDS</span>
+        <div className="mt-3 grid shrink-0 gap-x-3 gap-y-2 sm:grid-cols-2">
+          <div className="space-y-1.5 text-xs font-medium text-ink-300">
+            <div className="flex items-center justify-between">
+              <span>辩论轮数</span>
+              <span className="pixel-text text-[12px] text-gold-300">{c.rounds} ROUNDS</span>
+            </div>
+            <PixelSegmented
+              value={String(c.rounds)}
+              options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: String(n) }))}
+              onChange={(v) => upd({ rounds: Number(v) })}
+              tone="gold"
+              aria-label="辩论轮数"
+            />
           </div>
-          <PixelSegmented
-            value={String(c.rounds)}
-            options={[1, 2, 3, 4].map((n) => ({ value: String(n), label: String(n) }))}
-            onChange={(v) => upd({ rounds: Number(v) })}
-            tone="gold"
-            aria-label="辩论轮数"
-          />
+          <div className="space-y-1.5 text-xs font-medium text-ink-300">
+            <div className="flex items-center justify-between">
+              <span>播放语速</span>
+              <span className="pixel-text text-[12px] text-gold-300">{c.speed}× SPEED</span>
+            </div>
+            <PixelSegmented
+              value={String(c.speed)}
+              options={[0.5, 1, 2, 4].map((n) => ({ value: String(n), label: `${n}×` }))}
+              onChange={(v) => upd({ speed: Number(v) })}
+              tone="gold"
+              aria-label="播放语速"
+            />
+          </div>
+          <div className="space-y-1.5 text-xs font-medium text-ink-300 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <PixelTooltip content="执行官相对法定份额的最大酌情偏移：0 = 严格法定，15 = 戏剧优先。只有当庭成立的法律事实才会在此范围内调整；0 表示严格按法定份额落槌。">
+                <span className="flex items-center gap-1">酌情幅度</span>
+              </PixelTooltip>
+              <span className="pixel-text text-[12px] text-gold-300">±{c.discretion ?? 5} pt</span>
+            </div>
+            <PixelSegmented
+              value={String(c.discretion ?? 5)}
+              options={[
+                { value: '0', label: '0 严格' },
+                { value: '5', label: '5 参考' },
+                { value: '10', label: '10' },
+                { value: '15', label: '15 戏剧' },
+              ]}
+              onChange={(v) => upd({ discretion: Number(v) })}
+              tone="gold"
+              aria-label="酌情幅度"
+            />
+          </div>
         </div>
-        <div className="space-y-2 text-xs font-medium text-ink-300">
-          <div className="flex items-center justify-between">
-            <PixelTooltip content="执行官相对法定份额的最大酌情偏移：0 = 严格法定，15 = 戏剧优先">
-              <span className="flex items-center gap-1">酌情幅度</span>
-            </PixelTooltip>
-            <span className="pixel-text text-[12px] text-gold-300">±{c.discretion ?? 5} pt</span>
-          </div>
-          <PixelSegmented
-            value={String(c.discretion ?? 5)}
-            options={[
-              { value: '0', label: '0 严格' },
-              { value: '5', label: '5 参考' },
-              { value: '10', label: '10' },
-              { value: '15', label: '15 戏剧' },
-            ]}
-            onChange={(v) => upd({ discretion: Number(v) })}
-            tone="gold"
-            aria-label="酌情幅度"
-          />
-          <div className="text-[11px] leading-snug text-ink-400">
-            只有当庭成立的法律事实（自认未扶养 / 放弃 / 多人确认的赡养）才会在此范围内调整份额；0 表示严格按法定份额落槌。
-          </div>
-        </div>
-        <div className="space-y-2 text-xs font-medium text-ink-300">
-          <div className="flex items-center justify-between">
-            <span>播放语速</span>
-            <span className="pixel-text text-[12px] text-gold-300">{c.speed}× SPEED</span>
-          </div>
-          <PixelSegmented
-            value={String(c.speed)}
-            options={[0.5, 1, 2, 4].map((n) => ({ value: String(n), label: `${n}×` }))}
-            onChange={(v) => upd({ speed: Number(v) })}
-            tone="gold"
-            aria-label="播放语速"
-          />
-        </div>
-        <div className="panel-inset space-y-1.5 p-3 text-xs">
+        <div className="panel-inset mt-3 min-h-0 flex-1 space-y-1.5 overflow-hidden p-2.5 text-xs">
           <div className="flex items-center justify-between">
             <span className="pixel-text flex items-center gap-1.5 text-[12px] text-ink-200"><Cpu size={13} className="text-gold-400" /> 模型分配</span>
             <button className="pixel-text text-[12px] text-gold-300 hover:underline" onClick={() => setShowProviders(true)}>管理供应商</button>
           </div>
-          <label className="block text-ink-300">
-            所有角色默认
-            <ModelSelect className="mt-1" value={c.default_model} onChange={(ref) => upd({ default_model: ref })} providers={providers} />
+          <label className="grid grid-cols-[5.75rem_minmax(0,1fr)] items-center gap-2 text-ink-300">
+            <span>所有角色</span>
+            <ModelSelect value={c.default_model} onChange={(ref) => upd({ default_model: ref })} providers={providers} />
           </label>
-          <label className="block text-ink-300">
-            遗嘱执行官（裁决）
-            <ModelSelect className="mt-1" value={c.executor_model} onChange={(ref) => upd({ executor_model: ref })} providers={providers} inheritLabel={inheritLabel} />
+          <label className="grid grid-cols-[5.75rem_minmax(0,1fr)] items-center gap-2 text-ink-300">
+            <span>执行官</span>
+            <ModelSelect value={c.executor_model} onChange={(ref) => upd({ executor_model: ref })} providers={providers} inheritLabel={inheritLabel} />
           </label>
-          <label className="block text-ink-300">
-            军师（入局模式）
-            <ModelSelect className="mt-1" value={advisorModel} onChange={setAdvisorModel} providers={providers} inheritLabel={advisorInherit} allowMock={false} />
+          <label className="grid grid-cols-[5.75rem_minmax(0,1fr)] items-center gap-2 text-ink-300">
+            <span>军师</span>
+            <ModelSelect value={advisorModel} onChange={setAdvisorModel} providers={providers} inheritLabel={advisorInherit} allowMock={false} />
           </label>
-          {!c.seat && <div className="text-[11px] text-ink-400">仅入局推演使用</div>}
-          <div className="text-[11px] leading-relaxed text-ink-400">
-            {overriddenCount > 0 ? `${overriddenCount} 位角色单独指定了模型；` : '在“传唤角色”卷可单独指定某人模型；'}
-            未接入模型的角色会用内置剧本发言，模型出错也会自动回退。
+          <div className="text-[11px] leading-snug text-ink-400">
+            {!c.seat && '军师仅入局推演使用。'}
+            {overriddenCount > 0 ? `${overriddenCount} 位角色单独指定了模型。` : '可在「传唤角色」卷单独指定某人模型。'}
+            未接入或出错时回退剧本发言。
           </div>
         </div>
       </div>
@@ -525,7 +524,7 @@ export default function SetupPage() {
   const ch = CHAPTERS[step]
 
   return (
-    <div className="setup-shell flex h-screen min-h-[560px] flex-col overflow-hidden">
+    <div className="setup-shell flex h-full flex-col overflow-hidden">
       <TopBar
         config={config}
         providers={providers}
@@ -545,7 +544,7 @@ export default function SetupPage() {
 
       {/* chapter rail：四卷进度 + 当前卷标题，合成一条，像 RPG 的章节选择 */}
       <nav className="shrink-0 border-b-2 border-ink-700 bg-ink-900/80" aria-label="案卷进度">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-3 py-2 sm:px-5">
+        <div className="mx-auto flex max-w-[1600px] min-[1920px]:max-w-[1900px] min-[2400px]:max-w-[2300px] items-center gap-3 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="pixel-text flex h-10 w-10 shrink-0 items-center justify-center border-2 text-[20px] shadow-[3px_3px_0_rgba(0,0,0,.55)]"
               style={{ borderColor: ch.accent, background: `${ch.accent}1f`, color: ch.accent }}>
@@ -587,11 +586,12 @@ export default function SetupPage() {
         </div>
       </nav>
 
-      {/* 游戏窗口主体：整页不滚，内容面板放不下时只在自己内部滚 */}
-      <main className="mx-auto grid min-h-0 w-full max-w-[1600px] flex-1 gap-4 px-3 py-3 sm:px-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-h-0 min-w-0 overflow-x-hidden overflow-y-auto pr-1">
+      {/* 游戏窗口主体：整页不滚；立案卷撑满一屏，其余卷内容放不下时只在自己内部滚 */}
+      <main className="mx-auto grid min-h-0 w-full max-w-[1600px] min-[1920px]:max-w-[1900px] min-[2400px]:max-w-[2300px] flex-1 gap-4 px-3 py-3 sm:px-5 xl:grid-cols-[minmax(0,1fr)_340px] min-[1920px]:grid-cols-[minmax(0,1fr)_420px] min-[2400px]:grid-cols-[minmax(0,1fr)_480px]">
+        <div className={`min-h-0 min-w-0 overflow-x-hidden ${ch.id === 'file' ? 'overflow-y-auto pr-1 lg:overflow-hidden lg:pr-0' : 'overflow-y-auto pr-1'}`}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={ch.id}
+              className={ch.id === 'file' ? 'h-full min-h-0' : undefined}
               initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -18 }}
               transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}>
               {chapterBody[ch.id]()}
@@ -607,7 +607,7 @@ export default function SetupPage() {
 
       {/* chapter navigation bar：窗口底部的操作条 */}
       <div className="glass shrink-0 border-x-0 border-b-0 shadow-none">
-        <div className="mx-auto flex max-w-[1600px] items-center gap-3 px-3 py-2.5 sm:px-5">
+        <div className="mx-auto flex max-w-[1600px] min-[1920px]:max-w-[1900px] min-[2400px]:max-w-[2300px] items-center gap-3 px-3 py-2.5 sm:px-5">
           <button className="btn-ghost h-10 shrink-0 px-3" disabled={step === 0} onClick={() => goStep(step - 1)}>
             <ArrowLeft size={15} /> <span className="hidden sm:inline">上一卷</span>
           </button>

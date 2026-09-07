@@ -14,6 +14,8 @@ interface ActiveTestimonyProps {
   phaseLabel?: string
   targetName?: string
   onOpenTranscript: () => void
+  /** wide：舞台下方的横向卡片；stacked：宽屏侧栏里的竖向卡片，按钮落到底部 */
+  layout?: 'wide' | 'stacked'
 }
 
 export default function ActiveTestimony({
@@ -23,10 +25,12 @@ export default function ActiveTestimony({
   phaseLabel,
   targetName,
   onOpenTranscript,
+  layout = 'wide',
 }: ActiveTestimonyProps) {
+  const stacked = layout === 'stacked'
   if (!turn || !agent) {
     return (
-      <section className="panel-elevated flex min-h-[96px] shrink-0 items-center gap-3 px-4 py-3" aria-label="当前发言">
+      <section className={`panel-elevated flex shrink-0 items-center gap-3 px-4 py-3 ${stacked ? 'min-h-[120px]' : 'min-h-[96px]'}`} aria-label="当前发言">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-ink-600 bg-ink-950 text-gold-300">
           <PxlKitIcon icon={MessageSquare} size={21} appearance="solid" color="#e2b25a" />
         </span>
@@ -44,7 +48,9 @@ export default function ActiveTestimony({
   return (
     <motion.section
       key={turn.turn_id}
-      className="panel-elevated relative grid shrink-0 grid-cols-[58px_minmax(0,1fr)] gap-3 overflow-hidden px-3 py-3 sm:grid-cols-[68px_minmax(0,1fr)_auto] sm:px-4"
+      className={`panel-elevated relative grid shrink-0 gap-3 overflow-hidden px-3 py-3 ${stacked
+        ? 'grid-cols-[58px_minmax(0,1fr)]'
+        : 'grid-cols-[58px_minmax(0,1fr)] sm:grid-cols-[68px_minmax(0,1fr)_auto] sm:px-4'}`}
       aria-label={`当前发言：${agent.name}`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
@@ -56,7 +62,7 @@ export default function ActiveTestimony({
         aria-hidden
       />
 
-      <div className="relative flex h-[68px] w-[58px] items-end justify-center overflow-hidden border-2 border-ink-600 bg-ink-950 sm:h-[78px] sm:w-[68px]">
+      <div className={`relative flex h-[68px] w-[58px] items-end justify-center overflow-hidden border-2 border-ink-600 bg-ink-950 ${stacked ? '' : 'sm:h-[78px] sm:w-[68px]'}`}>
         <CharacterPortrait
           agent={agent}
           status={status}
@@ -77,13 +83,13 @@ export default function ActiveTestimony({
           {!speaking && <span className="font-mono text-[9px] text-ink-400">已记录</span>}
           {phaseLabel && <span className="font-mono text-[10px] text-ink-400">{phaseLabel}</span>}
           {action && (
-            <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] ${action.cls}`}>
+            <span className={`pixel-text inline-flex items-center gap-1 border-2 px-1.5 py-0 text-[11px] leading-4 ${action.cls}`}>
               <PxlKitIcon icon={action.icon} size={11} aria-hidden />
               {action.label}{targetName ? ` · 对 ${targetName}` : ''}
             </span>
           )}
         </header>
-        <div className="mt-1.5 max-h-24 overflow-y-auto pr-2 text-[13px] leading-6 text-ink-100 sm:text-sm">
+        <div className={`mt-1.5 overflow-y-auto pr-2 text-[13px] leading-6 text-ink-100 sm:text-sm ${stacked ? 'max-h-36' : 'max-h-24'}`}>
           {turn.text || <span className="text-ink-400">正在组织观点…</span>}
           {speaking && <span className="ml-1 inline-block h-[1em] w-0.5 translate-y-0.5 animate-caret bg-gold-300" aria-hidden />}
         </div>
@@ -91,7 +97,7 @@ export default function ActiveTestimony({
 
       <button
         type="button"
-        className="btn-ghost col-span-2 min-h-11 justify-center self-center px-3 sm:col-span-1"
+        className={`btn-ghost col-span-2 min-h-11 justify-center self-center px-3 ${stacked ? '' : 'sm:col-span-1'}`}
         onClick={onOpenTranscript}
         aria-label="查看完整庭审记录"
       >

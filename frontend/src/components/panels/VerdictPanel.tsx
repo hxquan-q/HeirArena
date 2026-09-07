@@ -2,7 +2,7 @@ import { ParallaxPxlKitIcon, PxlKitIcon } from '@pxlkit/core'
 import { Flag, Skull, Sword, Trophy } from '@pxlkit/gamification'
 import { Friends } from '@pxlkit/social'
 import { PixelCrown } from '@pxlkit/parallax'
-import { PixelChip, PixelStatCard, PixelTypewriter } from '@pxlkit/ui-kit'
+import { PixelAlert, PixelChip, PixelStatCard, PixelTypewriter } from '@pxlkit/ui-kit'
 import { motion } from 'motion/react'
 import { Download, FileText, Handshake, ListChecks, RotateCcw, Search, Target } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -45,15 +45,20 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
   const heirs = Object.keys(verdict.targets)
   const topHeir = heirs.reduce((best, id) => ((verdict.value_shares[id] ?? 0) > (verdict.value_shares[best] ?? 0) ? id : best), heirs[0])
   const betWin = betId != null && betId === topHeir
+  const evidenceById = Object.fromEntries((verdict.evidence ?? []).map((item) => [item.id, item]))
+  const baselineChanges = Object.entries(verdict.legal_percent).flatMap(([id, after]) => {
+    const before = verdict.original_legal_percent?.[id]
+    return before != null && Math.abs(after - before) >= 0.05 ? [{ id, before, after }] : []
+  })
 
   return (
     <div className="space-y-4 text-sm">
       {betId && (
         <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-          className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-xs ${betWin
-            ? 'border-gold-500/40 bg-gold-500/10 text-gold-200'
-            : 'border-white/10 bg-ink-900/70 text-ink-300'}`}>
+          className={`flex items-center gap-2.5 border-2 px-3 py-2.5 text-xs shadow-[3px_3px_0_rgba(0,0,0,.55)] ${betWin
+            ? 'border-gold-600 bg-gold-600/15 text-gold-200'
+            : 'border-ink-600 bg-ink-900 text-ink-300'}`}>
           <Target size={15} className={betWin ? 'text-gold-300' : 'text-ink-400'} />
           {betWin ? (
             <span><b className="text-gold-300">神机妙算！</b>你押的 {byId[betId]?.name ?? betId} 真的拿了大头（{verdict.value_shares[betId]?.toFixed(1)}%）。</span>
@@ -65,8 +70,9 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
       )}
 
       {verdict.speech && (
-        <blockquote className="relative rounded-xl border border-gold-500/25 bg-gold-500/6 px-4 pt-4 pb-3 text-[13px] leading-relaxed text-ink-100">
-          <span className="absolute -top-2.5 left-3 rounded-full border border-gold-500/35 bg-ink-900 px-2 py-0.5 text-[10px] font-bold tracking-[0.18em] text-gold-300">
+        <blockquote className="relative mt-2 border-2 border-gold-600 bg-ink-950 px-4 pt-4 pb-3 text-[13px] leading-relaxed text-ink-100"
+          style={{ boxShadow: 'inset 0 0 0 2px #17120f, inset 0 0 0 3px rgba(243,211,138,.3), 4px 4px 0 rgba(0,0,0,.6)' }}>
+          <span className="pixel-text absolute -top-3 left-3 border-2 border-gold-600 bg-ink-800 px-2 text-[12px] leading-5 tracking-[0.08em] text-gold-300 shadow-[2px_2px_0_rgba(0,0,0,.6)]">
             ⚖ 执行官宣判
           </span>
           <PixelTypewriter label={verdict.speech} speed={22} tone="gold" />
@@ -74,25 +80,25 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
       )}
 
       {verdict.judgment && (verdict.judgment.findings || verdict.judgment.reasoning || verdict.judgment.orders?.length) && (
-        <div className="rounded-xl border border-white/8 bg-ink-900/70 p-4">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold tracking-[0.18em] text-gold-300">
-            <FileText size={13} /> 判决书 JUDGMENT
+        <div className="paper-card parchment p-4">
+          <div className="pixel-text mb-3 flex items-center gap-2 text-[13px] tracking-[0.12em] text-paper-muted">
+            <FileText size={13} /> 判决书 · JUDGMENT
           </div>
           {verdict.judgment.findings && (
-            <p className="text-xs leading-relaxed text-ink-200">
-              <span className="font-bold text-ink-100">经审理查明：</span>{verdict.judgment.findings}
+            <p className="text-xs leading-relaxed text-paper-ink">
+              <span className="font-bold">经审理查明：</span>{verdict.judgment.findings}
             </p>
           )}
           {verdict.judgment.reasoning && (
-            <p className="mt-2 text-xs leading-relaxed text-ink-200">
-              <span className="font-bold text-ink-100">本院认为：</span>{verdict.judgment.reasoning}
+            <p className="mt-2 text-xs leading-relaxed text-paper-ink">
+              <span className="font-bold">本院认为：</span>{verdict.judgment.reasoning}
             </p>
           )}
           {verdict.judgment.orders?.length ? (
-            <ol className="mt-3 space-y-1.5 border-t border-white/6 pt-3">
+            <ol className="mt-3 space-y-1.5 border-t-2 border-dashed border-paper-400 pt-3">
               {verdict.judgment.orders.map((o, i) => (
-                <li key={i} className="flex gap-2 text-xs leading-relaxed text-ink-100">
-                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border border-gold-500/25 bg-gold-500/10 font-mono text-[9px] text-gold-300">{i + 1}</span>
+                <li key={i} className="flex gap-2 text-xs leading-relaxed text-paper-ink">
+                  <span className="pixel-text mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center border-2 border-paper-ink bg-paper-100 text-[10px] text-paper-ink">{i + 1}</span>
                   {o}
                 </li>
               ))}
@@ -116,25 +122,25 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
         </div>
       )}
 
-      <div className="rounded-xl border border-white/6 bg-ink-800/60 p-3">
-        <div className="mb-1 text-xs font-semibold text-ink-400">最终价值份额（遗产净额 {verdict.estate_total} 万元）</div>
+      <div className="panel p-3">
+        <SectionTitle>最终价值份额 · 遗产净额 {verdict.estate_total} 万元</SectionTitle>
         <div className="flex items-center gap-2">
           <div className="relative h-36 w-36 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pie} dataKey="value" nameKey="name" innerRadius={36} outerRadius={64} paddingAngle={2} stroke="#0b0d12" strokeWidth={2} isAnimationActive={false}>
+                <Pie data={pie} dataKey="value" nameKey="name" innerRadius={36} outerRadius={64} paddingAngle={2} stroke="#17120f" strokeWidth={3} isAnimationActive={false}>
                   {pie.map((p) => <Cell key={p.id} fill={p.color} />)}
                 </Pie>
-                <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#151924', border: '1px solid #2a3142', borderRadius: 10, fontSize: 12 }} />
+                <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#17120f', border: '2px solid #55443a', borderRadius: 0, fontSize: 12, boxShadow: '3px 3px 0 rgba(0,0,0,.6)' }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[9px] tracking-widest text-ink-400">净额</span>
-              <span className="font-mono text-sm font-bold text-gold-300">{verdict.estate_total}万</span>
+              <span className="pixel-text text-[10px] tracking-widest text-ink-400">净额</span>
+              <span className="pixel-text text-[15px] text-gold-300">{verdict.estate_total}万</span>
             </div>
           </div>
           <table className="w-full text-xs">
-            <thead className="text-ink-400">
+            <thead className="pixel-text text-[11px] text-ink-400">
               <tr><th className="text-left font-normal">继承人</th><th className="pl-2 text-right font-normal">法定</th><th className="pl-2 text-right font-normal">裁决</th><th className="pl-2 text-right font-normal">到手</th></tr>
             </thead>
             <tbody>
@@ -143,9 +149,9 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
                 const final = verdict.value_shares[id] ?? 0
                 const d = final - legal
                 return (
-                  <tr key={id} className="border-t border-white/5">
+                  <tr key={id} className="border-t-2 border-ink-700">
                     <td className="py-1 whitespace-nowrap">
-                      <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: byId[id]?.color }} />
+                      <span className="mr-1.5 inline-block h-2.5 w-2.5 border border-ink-950 align-middle" style={{ background: byId[id]?.color }} />
                       {byId[id]?.name ?? id}
                       {id === topHeir && heirs.length > 1 && (
                       <span className="ml-1 inline-flex align-middle" title="份额最高">
@@ -154,7 +160,7 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
                     )}
                     </td>
                     <td className="pl-2 text-right font-mono text-ink-300">{legal.toFixed(1)}%</td>
-                    <td className={`pl-2 text-right font-mono font-semibold ${d > 0.5 ? 'text-emerald-300' : d < -0.5 ? 'text-red-300' : 'text-ink-100'}`}>{final.toFixed(1)}%</td>
+                    <td className={`pl-2 text-right font-mono font-semibold ${d > 0.5 ? 'text-jade-300' : d < -0.5 ? 'text-seal-400' : 'text-ink-100'}`}>{final.toFixed(1)}%</td>
                     <td className="pl-2 text-right font-mono text-gold-300">{verdict.member_value[id] ?? 0} 万</td>
                   </tr>
                 )
@@ -165,22 +171,23 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
       </div>
 
       <div>
-        <div className="mb-2 text-xs font-semibold text-ink-400">资产归属</div>
+        <SectionTitle>资产归属</SectionTitle>
         <div className="space-y-2">
           {caseData.assets.map((a) => {
             const row = Object.entries(verdict.allocation[a.id] ?? {}).sort((x, y) => y[1] - x[1])
             return (
-              <div key={a.id} className="rounded-xl border border-white/6 bg-ink-800/60 p-3">
+              <div key={a.id} className="panel-inset p-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">{ASSET_EMOJI[a.type]}</span>
-                  <span className="font-semibold">{a.name}</span>
-                  <span className="text-xs text-ink-400">{a.value} 万</span>
-                  {a.joint && <span className="chip text-[10px] text-sky-300">夫妻共同</span>}
-                  {a.sentimental && <span className="chip text-[10px] text-pink-300">纪念</span>}
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center border-2 border-ink-600 bg-ink-900 text-lg shadow-[2px_2px_0_rgba(0,0,0,.55)]" aria-hidden>{ASSET_EMOJI[a.type]}</span>
+                  <span className="pixel-text text-[14px] text-ink-100">{a.name}</span>
+                  <span className="pixel-text text-[12px] text-gold-300">{a.value} 万</span>
+                  {a.joint && <span className="chip py-0 text-[11px] text-[#9cc9ff]">夫妻共同</span>}
+                  {a.sentimental && <span className="chip py-0 text-[11px] text-[#f7a9c8]">纪念</span>}
                 </div>
-                <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-ink-700">
+                {/* 分段 HP 条：每一段是一位继承人拿到的比例 */}
+                <div className="hp-track mt-2 flex h-3 overflow-hidden">
                   {row.map(([id, pct]) => (
-                    <div key={id} style={{ width: `${pct}%`, background: byId[id]?.color ?? '#5b647a' }} title={`${byId[id]?.name ?? id} ${pct}%`} />
+                    <div key={id} className="h-full border-r-2 border-ink-950 last:border-r-0" style={{ width: `${pct}%`, background: byId[id]?.color ?? '#55443a', boxShadow: 'inset 0 -2px 0 rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.3)' }} title={`${byId[id]?.name ?? id} ${pct}%`} />
                   ))}
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
@@ -213,23 +220,53 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
         </Section>
       )}
 
+      {verdict.evidence?.length ? (
+        <Section title="庭上举证 · 法定基线重算">
+          <PixelAlert
+            tone="gold"
+            label={`${verdict.evidence.length} 项材料已在本次沙盘中采信`}
+            message="结构化材料先改变规则引擎的法定基线；当庭自认等事实再受酌情幅度约束。此处不代表真实法院完成证据审查。"
+            live="polite"
+          />
+          <div className="mt-2 space-y-2">
+            {verdict.evidence.map((item) => (
+              <div key={item.id} className="panel-inset px-2.5 py-2 text-xs leading-relaxed">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-ink-100">{item.label}</span>
+                  <span className="chip py-0 text-[10px] text-gold-300">第{item.article}条</span>
+                  <span className="font-mono text-[9px] text-ink-400">{item.id}</span>
+                </div>
+                <div className="mt-1 text-ink-300">{item.evidence_type} · {item.note}</div>
+              </div>
+            ))}
+          </div>
+          {baselineChanges.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5" aria-label="法定基线变化">
+              {baselineChanges.map(({ id, before, after }) => (
+                <span key={id} className="chip text-[10px] text-ink-200">
+                  <span style={{ color: byId[id]?.color }}>{byId[id]?.name ?? id}</span>
+                  <span className="font-mono">{before.toFixed(1)}% → {after.toFixed(1)}%</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </Section>
+      ) : null}
+
       {verdict.adjustments.length > 0 && (
         <Section title="酌情调整">
           {verdict.adjustments.map((a, i) => (
             <div key={i} className="text-xs text-ink-200">
               <span style={{ color: byId[a.member_id]?.color }}>{byId[a.member_id]?.name ?? a.member_id}</span>
               {typeof a.delta === 'number' && a.delta !== 0 && (
-                <span className={`ml-1 font-mono ${a.delta > 0 ? 'text-emerald-300' : 'text-red-300'}`}>{a.delta > 0 ? '+' : ''}{a.delta}pt</span>
+                <span className={`ml-1 font-mono ${a.delta > 0 ? 'text-jade-300' : 'text-seal-400'}`}>{a.delta > 0 ? '+' : ''}{a.delta}pt</span>
               )}
               <span className="text-ink-300">：{a.reason}</span>
               {a.article && <span className="ml-1 text-ink-400">（第{a.article}条）</span>}
               {a.turn_ids?.length ? (
                 <span className="ml-1 inline-flex gap-1 align-middle">
                   {a.turn_ids.map((tid) => (
-                    <button key={tid} onClick={() => onJumpToTurn(tid)} title={turnText(tid) ?? undefined}
-                      className="chip border-violet-400/20 bg-violet-400/6 px-1.5 font-mono text-[9px] text-violet-200 transition hover:border-violet-400/40 hover:text-violet-100">
-                      {tid}
-                    </button>
+                    <TurnLink key={tid} id={tid} title={turnText(tid)} onClick={() => onJumpToTurn(tid)} />
                   ))}
                 </span>
               ) : null}
@@ -239,29 +276,34 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
       )}
 
       {verdict.established_facts?.length ? (
-        <Section title={`当庭成立的法律事实 · 证据卡（酌情 ±${verdict.discretion ?? 0}pt）`}>
+        <Section title={verdict.evidence?.length
+          ? `当庭成立的法律事实 · 材料重算 + 酌情 ±${verdict.discretion ?? 0}pt`
+          : `当庭成立的法律事实 · 证据卡（酌情 ±${verdict.discretion ?? 0}pt）`}>
           <div className="grid gap-2.5 pt-1 sm:grid-cols-2">
             {verdict.established_facts.map((f, i) => (
               <motion.div key={i}
                 initial={{ opacity: 0, y: 12, rotate: 0 }}
                 animate={{ opacity: 1, y: 0, rotate: i % 2 ? 0.6 : -0.6 }}
                 transition={{ delay: 0.15 + i * 0.09, type: 'spring', stiffness: 240, damping: 19 }}
-                className="relative border-2 border-dashed border-gold-500/35 bg-[linear-gradient(165deg,rgba(233,190,111,.08),rgba(0,0,0,.3))] px-3 pt-3.5 pb-2.5 shadow-[3px_3px_0_rgba(0,0,0,.45)]">
-                <span className="pixel-text absolute -top-2.5 left-2 border border-gold-600 bg-ink-950 px-1.5 text-[10px] leading-4 text-gold-300 shadow-[1.5px_1.5px_0_rgba(0,0,0,.6)]">
+                className="relative border-2 border-dashed border-gold-600 bg-ink-950 px-3 pt-3.5 pb-2.5 shadow-[3px_3px_0_rgba(0,0,0,.55)]">
+                <span className="pixel-text absolute -top-2.5 left-2 border-2 border-gold-600 bg-ink-800 px-1.5 text-[11px] leading-4 text-gold-300 shadow-[2px_2px_0_rgba(0,0,0,.6)]">
                   证据 {String(i + 1).padStart(2, '0')}
                 </span>
                 <div className="flex items-start gap-1.5 text-xs leading-relaxed text-ink-100">
-                  <ListChecks size={13} className="mt-0.5 shrink-0 text-emerald-300" />
+                  <ListChecks size={13} className="mt-0.5 shrink-0 text-jade-300" />
                   <span>{f.text}</span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1 pl-5">
-                  <span className="chip text-[9px] text-ink-300">第{f.article}条</span>
+                  <span className="chip py-0 text-[11px] text-ink-300">第{f.article}条</span>
                   {f.turn_ids?.length ? <span className="text-[10px] text-ink-400">来源发言：</span> : null}
                   {f.turn_ids?.map((tid) => (
-                    <button key={tid} onClick={() => onJumpToTurn(tid)} title={turnText(tid) ?? undefined}
-                      className="chip border-violet-400/20 bg-violet-400/6 px-1.5 font-mono text-[9px] text-violet-200 transition hover:border-violet-400/40 hover:text-violet-100">
-                      {tid}
-                    </button>
+                    <TurnLink key={tid} id={tid} title={turnText(tid)} onClick={() => onJumpToTurn(tid)} />
+                  ))}
+                  {f.evidence_ids?.length ? <span className="text-[10px] text-ink-400">来源材料：</span> : null}
+                  {f.evidence_ids?.map((id) => (
+                    <span key={id} className="chip py-0 font-mono text-[9px] text-gold-300" title={evidenceById[id]?.note}>
+                      {id.slice(0, 9)}
+                    </span>
                   ))}
                 </div>
               </motion.div>
@@ -274,7 +316,7 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
         <Section title="需要进一步确认的问题">
           {verdict.open_questions.map((q, i) => (
             <div key={i} className="flex gap-1.5 text-xs leading-relaxed text-ink-200">
-              <Search size={13} className="mt-0.5 shrink-0 text-amber-300" /> {q}
+              <Search size={13} className="mt-0.5 shrink-0 text-gold-300" /> {q}
             </div>
           ))}
         </Section>
@@ -283,29 +325,29 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
       {verdict.unaddressed?.length ? (
         <Section title="各方论点评估 · 漏接分析">
           {verdict.unaddressed.map((u, i) => (
-            <div key={i} className="rounded-lg border border-white/6 bg-black/20 px-2.5 py-2 text-xs leading-relaxed">
+            <div key={i} className="panel-inset px-2.5 py-2 text-xs leading-relaxed">
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full" style={{ background: byId[u.member_id]?.color ?? '#6d7588' }} />
+                <span className="h-2.5 w-2.5 border border-ink-950" style={{ background: byId[u.member_id]?.color ?? '#55443a' }} />
                 <span className="font-bold" style={{ color: byId[u.member_id]?.color }}>{byId[u.member_id]?.name ?? u.member_id}</span>
               </div>
-              {u.strongest && <div className="mt-1 text-ink-200"><span className="text-emerald-300">最有说服力</span> · {u.strongest}</div>}
-              {u.missed && <div className="mt-0.5 text-ink-300"><span className="text-red-300">未回应</span> · {u.missed}</div>}
+              {u.strongest && <div className="mt-1 text-ink-200"><span className="text-jade-300">最有说服力</span> · {u.strongest}</div>}
+              {u.missed && <div className="mt-0.5 text-ink-300"><span className="text-seal-400">未回应</span> · {u.missed}</div>}
             </div>
           ))}
         </Section>
       ) : null}
 
       {verdict.settlement && (verdict.settlement.overview || verdict.settlement.plans?.length) ? (
-        <div className="rounded-xl border border-emerald-400/15 bg-emerald-950/20 p-3">
-          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
+        <div className="border-2 border-jade-700 bg-ink-900 p-3 shadow-[3px_3px_0_rgba(0,0,0,.55)]">
+          <div className="pixel-text mb-1.5 flex items-center gap-1.5 text-[12px] text-jade-300">
             <Handshake size={13} /> 若不接受判决：和解三档方案
           </div>
           {verdict.settlement.overview && <p className="mb-2 text-xs leading-relaxed text-ink-200">{verdict.settlement.overview}</p>}
           <div className="grid gap-1.5">
             {verdict.settlement.plans?.map((p, i) => (
-              <div key={i} className="rounded-lg border border-white/6 bg-black/25 px-2.5 py-2">
+              <div key={i} className="panel-inset px-2.5 py-2">
                 <div className="flex items-center gap-1.5 text-xs font-bold">
-                  <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-400/15 font-mono text-[10px] text-emerald-300">{p.tier}</span>
+                  <span className="pixel-text flex h-4 w-4 items-center justify-center border-2 border-jade-700 bg-ink-950 text-[10px] text-jade-300">{p.tier}</span>
                   <span className="text-ink-100">{p.title}</span>
                 </div>
                 <div className="mt-1 text-xs leading-relaxed text-ink-300">{p.detail}</div>
@@ -335,9 +377,27 @@ export default function VerdictPanel({ verdict, caseData, agents, articleShort, 
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-white/6 bg-ink-800/60 p-3">
-      <div className="mb-1.5 text-xs font-semibold text-ink-400">{title}</div>
+    <div className="panel p-3">
+      <SectionTitle>{title}</SectionTitle>
       <div className="space-y-1">{children}</div>
     </div>
+  )
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+  return <div className="pixel-text mb-1.5 text-[12px] text-ink-400">{children}</div>
+}
+
+/** 跳转到某条发言的小按钮：紫色（幽灵/引用）像素标签 */
+function TurnLink({ id, title, onClick }: { id: string; title?: string | null; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title ?? undefined}
+      className="chip border-ghost-700 bg-ghost-700/20 px-1.5 py-0 font-mono text-[10px] text-ghost-300 transition hover:border-ghost-400 hover:text-ghost-300"
+    >
+      {id}
+    </button>
   )
 }

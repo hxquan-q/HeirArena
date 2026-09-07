@@ -107,20 +107,20 @@ export default function CharacterPortrait({
           src={artwork}
           alt={`${agent.name}角色立绘`}
           draggable={false}
-          className="absolute bottom-0 left-1/2 max-w-none -translate-x-1/2 object-contain drop-shadow-[0_8px_8px_rgba(0,0,0,.35)]"
+          className="absolute bottom-0 left-1/2 max-w-none -translate-x-1/2 object-contain drop-shadow-[3px_4px_0_rgba(0,0,0,.35)]"
           style={{ width: size * 1.12, height: size * 1.12 }}
         />
       </span>
       {status === 'thinking' && (
-        <span className="absolute top-[4%] right-[-4%] flex h-5 min-w-7 items-center justify-center rounded-full border border-white/50 bg-white/90 px-1 text-[9px] font-black tracking-wider text-ink-700 shadow-lg">
+        <span className="absolute top-[4%] right-[-4%] flex h-5 min-w-7 items-center justify-center border-2 border-ink-950 bg-paper-100 px-1 text-[9px] font-black tracking-wider text-ink-700 shadow-[2px_2px_0_rgba(0,0,0,.55)]">
           ···
         </span>
       )}
       {status === 'speaking' && (
         <span className="absolute top-[26%] right-[-7%] text-xs font-black text-gold-300 drop-shadow-[0_0_6px_rgba(233,190,111,.8)]">)))</span>
       )}
-      {status === 'angry' && <span className="pixel-text absolute top-0 right-0 text-sm text-seal-400 drop-shadow-lg" aria-label="生气">!!</span>}
-      {status === 'happy' && <span className="absolute top-0 right-0 text-sm drop-shadow-lg">✦</span>}
+      {status === 'angry' && <span className="pixel-text absolute top-0 right-0 text-sm text-seal-400 drop-shadow-[2px_2px_0_rgba(0,0,0,.75)]" aria-label="生气">!!</span>}
+      {status === 'happy' && <span className="pixel-text absolute top-0 right-0 text-sm text-gold-300 drop-shadow-[2px_2px_0_rgba(0,0,0,.75)]">✦</span>}
     </div>
   )
 }

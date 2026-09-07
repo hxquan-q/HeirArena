@@ -22,6 +22,7 @@ from .scoring import (
     score_red_lines,
     score_target_assets,
 )
+from .evidence import adjudicated_case, admitted_records, court_evidence_options, option_for
 from .advisor import (
     AdvisorUnavailable,
     build_strategy,
@@ -34,6 +35,8 @@ from .advisor import (
 
 __all__ = [
     "AdvisorUnavailable",
+    "adjudicated_case",
+    "admitted_records",
     "analyze",
     "asset_competition",
     "build_equilibrium",
@@ -42,11 +45,13 @@ __all__ = [
     "build_strategy",
     "coalition_table",
     "complete_schema",
+    "court_evidence_options",
     "evaluate_red_line",
     "generate_briefs",
     "infer_all_goals",
     "infer_goals",
     "options_for",
+    "option_for",
     "payoff_table",
     "payoffs_for_profile",
     "reachability",

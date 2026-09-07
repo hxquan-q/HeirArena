@@ -57,7 +57,7 @@ export default function PredictionCard({ caseData, legal, agents, turns, verdict
   }
 
   return (
-    <div className="border-b-2 border-ink-700 bg-black/15 p-3">
+    <div className="border-b-2 border-ink-700 bg-ink-900 p-3">
       <div className="mb-1 flex items-center justify-between">
         <div className="pixel-text flex items-center gap-1.5 text-[12px] text-gold-300">
           <PxlKitIcon icon={verdict ? Trophy : QuestCompass} size={14} />

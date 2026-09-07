@@ -119,7 +119,7 @@ export default function ActionBar({ sessionId, caseData, agents, turns, done, on
                     ? 'border-ink-700 bg-ink-950/60 text-ink-400'
                     : sk.id === 'ultimate'
                       ? 'border-seal-700 bg-seal-700/15 text-ink-100 shadow-[2px_2px_0_rgba(0,0,0,.55)] hover:-translate-x-px hover:-translate-y-px hover:border-seal-400'
-                      : 'border-ghost-700 bg-ink-900 text-ink-100 shadow-[2px_2px_0_rgba(0,0,0,.55)] hover:-translate-x-px hover:-translate-y-px hover:border-ghost-400'} ${busy === sk.label ? 'animate-pulse' : ''}`}>
+                      : 'border-ghost-700 bg-ink-900 text-ink-100 shadow-[2px_2px_0_rgba(0,0,0,.55)] hover:-translate-x-px hover:-translate-y-px hover:border-ghost-400'} ${busy === sk.label ? 'animate-blink-step' : ''}`}>
                   <span className={`flex h-8 w-8 items-center justify-center border-2 border-ink-950 ${locked ? 'bg-ink-900 grayscale' : sk.id === 'ultimate' ? 'bg-seal-700/40' : 'bg-ghost-700/35'}`}>
                     <PxlKitIcon icon={sk.icon} size={18} appearance={locked ? 'solid' : 'palette'} color="#7a6350" />
                   </span>

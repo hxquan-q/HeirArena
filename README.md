@@ -29,6 +29,7 @@ HeirArena 把遗产案件变成一个可以反复推演的互动沙盘：输入�
 - **身份驱动**：每个 Agent 都有家庭关系、性格、资产偏好、公开立场和诉求。
 - **焦点驱动**：执行官从案情归纳争议焦点，辩论逐轮围绕焦点推进。
 - **证据卡牌**：资产、卷宗事实和当庭证言会变成带热度、法条与来源回合的卡牌。
+- **庭上举证**：入局玩家可在自己的回合从庭前 what-if 清单选择待证事实、材料类型与脱敏摘要；服务端白名单校验后重算法定基线，并把材料来源带进判决与导出。
 - **幽灵技能**：显灵能量按阶段恢复；五种技能会组合当前案情、发言和所选证据生成干预。
 - **局势预测**：实时把各方最新资产主张折算成价值份额，显示争夺热度和焦点进度。
 - **阵营与时间线**：保留全场攻击、结盟、阶段、幽灵和裁决事件，形成可回看的案件过程。
@@ -48,8 +49,8 @@ flowchart LR
 
 1. **建案**：使用内置剧本，手动编辑卷宗，或导入 UTF-8 的 Markdown / 纯文本案情。
 2. **入局**：默认旁观全员；也可在第 IV 卷选席位、写诉求、推演策略后以当事人身份开庭。
-3. **博弈**：旁观时查看时间线、证据宝箱、阵营网络和终局预测，用显灵技能影响下一位 Agent；入局时关闭显灵，轮到你可亲自发言或改由 AI 代说。
-4. **裁决**：规则引擎计算基线，执行官只可依据成立且可追溯的事实，在设定幅度内调整。
+3. **博弈**：旁观时查看时间线、证据宝箱、阵营网络和终局预测，用显灵技能影响下一位 Agent；入局时关闭显灵，轮到你可亲自发言、提交一项结构化材料或改由 AI 代说。
+4. **裁决**：庭上提交且通过白名单的材料先让规则引擎重算法定基线；执行官再只依据成立且可追溯的自认等事实，在设定幅度内调整。
 5. **复盘**：查看判决书、成立事实、未决问题、论点分析、和解方案、资产归属和押注结果；入局场次另有记分卡与下一局建议。
 6. **入局推演**：选定席位 → 写结构化诉求与自由文本 → 军师生成全员简报与策略矩阵 → AI 代打或亲自发言（发言卡辅助，自认只能手动勾选）→ 闭庭后看记分卡、叙事复盘并导出「入局推演报告」。执行官对席位盲判、份额仍只随当庭事实变动、军师建议不构成法律意见。
 
@@ -130,6 +131,7 @@ npm run dev
 ```mermaid
 flowchart LR
     Case["确认后的案情"] --> Legal["规则引擎<br/>法定份额基线"]
+    Evidence["庭上结构化举证<br/>what-if 事实 + 材料白名单"] --> Legal
     Speech["Agent 发言"] --> Facts["符号化事实<br/>自认、让步、扶养确认"]
     Facts --> Verify["身份、人数、turn_id 校验"]
     Legal --> Bound["受限裁量<br/>0 / ±5 / ±10 / ±15 个百分点"]
@@ -144,7 +146,9 @@ flowchart LR
 - `waive_share`：本人明确放弃部分份额；
 - `acknowledge_support:<id>`：确认另一成员尽了主要扶养义务，并满足多人确认规则。
 
-普通指控、口才、攻击、结盟、押注和戏剧值不会直接改变份额。执行官模型输出还要经过事实白名单、发言引用和数学边界校验；失败时回退到纯规则裁决。
+入局玩家还可在自己的回合提交一项 what-if 待证事实。后端只接受该事实静态举证清单中的材料类型，去重并随会话持久化；裁决时先在案件副本上重放已采信材料、重算法定基线，再进入上述受限裁量。材料摘要不会进入模型提示词，“沙盘采信”也不等于真实证据审查。
+
+普通指控、口才、攻击、结盟、押注和戏剧值不会直接改变份额。执行官模型输出还要经过事实白名单、发言或材料引用和数学边界校验；失败时回退到纯规则裁决。
 
 ## 技术栈
 
@@ -200,12 +204,13 @@ HeirArena/
 | `PUT` | `/api/sessions/{id}/seat` | 切换「本席由我发言」 |
 | `POST` | `/api/sessions/{id}/speak` | 玩家发言或改由 AI 代说 |
 | `POST` | `/api/sessions/{id}/cards` | 重新起草发言卡 |
+| `POST` | `/api/sessions/{id}/evidence` | 玩家回合提交一项结构化材料；返回重算法定基线预览 |
 | `POST` | `/api/sessions/{id}/interject` | 幽灵低语与技能干预；**入局会话返回 409** |
 | `POST` | `/api/sessions/{id}/pause` | 节点边界休庭；等待玩家时返回 409 |
 | `POST` | `/api/sessions/{id}/resume` | 从检查点续庭 |
 | `GET` | `/api/sessions/{id}/export` | 导出 Markdown；入局场次追加「入局推演报告」 |
 
-SSE 事件（`frontend/src/api/client.ts` 的 `SSE_EVENTS`，共 19 个）：`session_start` `phase` `focus` `agent_status` `speech_start` `speech_delta` `speech_end` `relation` `reaction` `ghost` `notice` `gavel` `verdict` `done` `error` `seat` `awaiting_player` `cards` `debrief`。后四个只在入局会话出现。
+SSE 事件（`frontend/src/api/client.ts` 的 `SSE_EVENTS`，共 20 个）：`session_start` `phase` `focus` `agent_status` `speech_start` `speech_delta` `speech_end` `relation` `reaction` `ghost` `notice` `gavel` `verdict` `done` `error` `seat` `awaiting_player` `cards` `evidence` `debrief`。后五个只在入局会话出现。
 
 ## 路线图
 
@@ -219,7 +224,8 @@ SSE 事件（`frontend/src/api/client.ts` 的 `SSE_EVENTS`，共 19 个）：`se
 - [x] 资产争夺热度、终局预测和庭前押注
 - [x] 事实约束裁决、资产落位和和解方案
 - [x] 入局推演：选席、诉求、军师简报、亲自发言与记分卡
-- [ ] 庭上证据卡改变事实、多次推演、对手强度开关
+- [x] 入局回合结构化举证、规则基线重算、判决与导出溯源
+- [ ] 多次推演、对手强度开关
 - [ ] 更多案件类型、社区剧本和多人参与
 
 ## 测试
@@ -233,7 +239,7 @@ npm test
 npm run build
 ```
 
-后端入局相关：`test_seat_models` `test_seat_evidence` `test_seat_analysis` `test_seat_game` `test_seat_scoring` `test_seat_api` `test_seat_advisor` `test_seat_prompts` `test_seat_blind` `test_seat_runtime` `test_seat_turn` `test_seat_debrief` `test_seat_export`。前端席位用例在 `useCaseDraft.test.ts`、`useCourt.test.ts`。
+后端入局相关：`test_seat_models` `test_seat_evidence` `test_court_evidence` `test_seat_analysis` `test_seat_game` `test_seat_scoring` `test_seat_api` `test_seat_advisor` `test_seat_prompts` `test_seat_blind` `test_seat_runtime` `test_seat_turn` `test_seat_debrief` `test_seat_export`。前端席位与庭上举证用例在 `useCaseDraft.test.ts`、`useCourt.test.ts`、`SeatPanels.test.tsx`。
 
 ## 开源协作
 
@@ -250,4 +256,4 @@ npm run build
 
 ## 免责声明
 
-HeirArena 提供的是娱乐化多 Agent 模拟、教育展示和有限规则下的参考计算，**不构成法律意见，也不预测真实调解或诉讼结果**。入局推演给出的策略与记分卡是基于你输入事实的沙盘推演，不构成法律意见。真实继承纠纷应由具备资质的专业人士结合完整证据和现行法律处理。
+HeirArena 提供的是娱乐化多 Agent 模拟、教育展示和有限规则下的参考计算，**不构成法律意见，也不预测真实调解或诉讼结果**。入局推演给出的策略、记分卡与“沙盘采信”结果都基于用户输入；结构化举证只校验事实和材料类型白名单，不鉴定材料真实性、合法性或证明力。真实继承纠纷应由具备资质的专业人士结合完整证据和现行法律处理。

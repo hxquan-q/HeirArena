@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { sfx } from '../../lib/sfx'
 import { useCourt } from '../../store/useCourt'
 import type { Action, PlayerSpeech } from '../../types'
+import CourtEvidencePanel from './CourtEvidencePanel'
 import { draftAdmissions, emptySeatDraft, type SeatDraft } from './draft'
 
 const PHASE_LABEL: Record<string, string> = {
@@ -105,6 +106,8 @@ export default function SeatDock({ sessionId, draft, onDraftChange, cardsSlot, o
       <PixelAlert tone="gold" label="轮到你了" message={banner || '请当庭发言'} live="polite" />
 
       {cardsSlot}
+
+      <CourtEvidencePanel sessionId={sessionId} />
 
       {anyAdmission && (
         <PixelAlert tone="red" label="份额会变" message="这会直接改变份额，确定吗" live="assertive" />

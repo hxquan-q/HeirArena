@@ -16,6 +16,8 @@ interface AgentRosterProps {
   betId: string | null
   bettingLocked: boolean
   onBet: (agentId: string) => void
+  /** horizontal：舞台下方一条横向滑动带；vertical：宽屏侧栏里的纵向名单 */
+  orientation?: 'horizontal' | 'vertical'
 }
 
 const STATUS_COLOR: Record<AgentStatus, string> = {
@@ -33,7 +35,10 @@ export default function AgentRoster({
   betId,
   bettingLocked,
   onBet,
+  orientation = 'horizontal',
 }: AgentRosterProps) {
+  const vertical = orientation === 'vertical'
+  const listRef = useRef<HTMLDivElement>(null)
   const buttonRefs = useRef(new Map<string, HTMLButtonElement>())
   const activeId = useMemo(
     () => agents.find((agent) => statuses[agent.id] === 'speaking')?.id
@@ -47,29 +52,54 @@ export default function AgentRoster({
     return active ? [active, ...agents.filter((agent) => agent.id !== activeId)] : agents
   }, [activeId, agents])
 
+  /* 只在名单自己的滚动容器里把当前发言人滚到中间；
+     不用 scrollIntoView——它会连带滚动整个页面，堆叠布局下每换一个发言人页面就被拽到名单处。 */
   useEffect(() => {
     if (!activeId) return
-    buttonRefs.current.get(activeId)?.scrollIntoView?.({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    })
-  }, [activeId])
+    const list = listRef.current
+    const btn = buttonRefs.current.get(activeId)
+    if (!list || !btn || typeof list.scrollTo !== 'function') return
+    if (vertical) {
+      list.scrollTo({ top: btn.offsetTop - (list.clientHeight - btn.offsetHeight) / 2, behavior: 'smooth' })
+    } else {
+      list.scrollTo({ left: btn.offsetLeft - (list.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth' })
+    }
+  }, [activeId, vertical])
+
+  const heading = (
+    <>
+      <span className="flex items-center gap-1.5 font-semibold text-ink-200">
+        <PxlKitIcon icon={UserGroup} size={12} aria-hidden /> 出席
+      </span>
+      <span className="font-mono">{agents.length} 席</span>
+      {!bettingLocked && (
+        <span className={`flex items-center gap-1 ${betId ? 'text-gold-300' : ''}`}>
+          <Target size={9} /> {betId ? '已押注' : '点击押注'}
+        </span>
+      )}
+    </>
+  )
 
   return (
-    <section className="panel-elevated shrink-0 px-2.5 py-2 sm:px-3" aria-label="出席角色">
-      <div className="no-scrollbar flex items-stretch gap-2 overflow-x-auto overscroll-x-contain">
-        <div className="flex min-w-[86px] shrink-0 flex-col justify-center border-r-2 border-ink-700 pr-2 text-[10px] leading-tight text-ink-400">
-          <span className="flex items-center gap-1.5 font-semibold text-ink-200">
-            <PxlKitIcon icon={UserGroup} size={12} aria-hidden /> 出席
-          </span>
-          <span className="font-mono">{agents.length} 席</span>
-          {!bettingLocked && (
-            <span className={`mt-1 flex items-center gap-1 ${betId ? 'text-gold-300' : ''}`}>
-              <Target size={9} /> {betId ? '已押注' : '点击押注'}
-            </span>
-          )}
+    <section
+      className={vertical
+        ? 'panel-elevated flex min-h-0 flex-1 flex-col overflow-hidden'
+        : 'panel-elevated shrink-0 px-2.5 py-2 sm:px-3'}
+      aria-label="出席角色"
+    >
+      {vertical && (
+        <div className="flex shrink-0 items-center gap-3 border-b-2 border-ink-700 bg-ink-900 px-3 py-2 text-[10px] leading-tight text-ink-400">
+          {heading}
         </div>
+      )}
+      <div ref={listRef} className={vertical
+        ? 'no-scrollbar relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain p-2.5'
+        : 'no-scrollbar relative flex items-stretch gap-2 overflow-x-auto overscroll-x-contain'}>
+        {!vertical && (
+          <div className="flex min-w-[86px] shrink-0 flex-col justify-center gap-y-1 border-r-2 border-ink-700 pr-2 text-[10px] leading-tight text-ink-400">
+            {heading}
+          </div>
+        )}
 
         {ordered.map((agent) => {
           const status = statuses[agent.id] ?? 'idle'
@@ -90,7 +120,8 @@ export default function AgentRoster({
               aria-label={`${agent.name}，${statusLabel(status)}${bettingLocked ? '，庭审结果已锁定' : '，押注拿大头'}`}
               onClick={() => onBet(agent.id)}
               className={[
-                'relative flex min-h-[58px] min-w-[148px] shrink-0 items-center gap-2 overflow-hidden border-2 px-2 py-1.5 text-left',
+                'relative flex min-h-[58px] shrink-0 items-center gap-2 overflow-hidden border-2 px-2 py-1.5 text-left',
+                vertical ? 'w-full' : 'min-w-[148px]',
                 'transition-[filter,opacity] disabled:cursor-default',
                 active ? 'bg-ink-800' : 'border-ink-700 bg-ink-900/85',
                 bettingLocked ? 'opacity-80' : 'hover:brightness-110',
@@ -145,8 +176,13 @@ export default function AgentRoster({
           )
         })}
 
-        <DramaMeter turns={turns} />
+        {!vertical && <DramaMeter turns={turns} />}
       </div>
+      {vertical && (
+        <div className="shrink-0 border-t-2 border-ink-700 bg-ink-900 px-3 py-2">
+          <DramaMeter turns={turns} orientation="vertical" />
+        </div>
+      )}
     </section>
   )
 }

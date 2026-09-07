@@ -116,7 +116,23 @@ export default function CourtRecord({ c, preview, previewErr, valid, submitting,
   )
 }
 
-/** 火漆印：卷宗齐备时「盖」下来，并配一声闷响（首次挂载已齐备则不响）。 */
+/** 像素圆：按 4 格一行切片、宽度取整到 8 格 */
+function pixelDisc(cx: number, cy: number, r: number) {
+  const rows: { x: number; y: number; w: number }[] = []
+  for (let y = -r; y < r; y += 4) {
+    const t = (y + 2) / r
+    const w = Math.round((2 * r * Math.sqrt(Math.max(0, 1 - t * t))) / 8) * 8
+    if (w > 0) rows.push({ x: cx - w / 2, y: cy + y, w })
+  }
+  return rows
+}
+const SEAL_RIM = pixelDisc(32, 32, 30)
+const SEAL_BODY = pixelDisc(32, 32, 26)
+const SEAL_HI = pixelDisc(26, 26, 12)
+const SEAL_SHADOW = pixelDisc(36, 36, 30)
+
+/** 火漆印：卷宗齐备时「盖」下来，并配一声闷响（首次挂载已齐备则不响）。
+ *  圆是台阶状的像素圆，三段红色阶做出蜡的厚度，右下一层硬阴影。 */
 function WaxSeal({ valid }: { valid: boolean }) {
   const prev = useRef(valid)
   useEffect(() => {
@@ -129,14 +145,21 @@ function WaxSeal({ valid }: { valid: boolean }) {
         {valid ? (
           <motion.div key="sealed" className="absolute inset-0 animate-stamp"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-seal-700 bg-[radial-gradient(circle_at_40%_35%,#ea6a5b,#d9483b_55%,#b83a2f)] shadow-[2px_3px_0_rgba(43,28,16,.55)]">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-seal-400/70">
-                <span className="pixel-text text-[16px] leading-none text-paper-100" style={{ textShadow: '1px 1px 0 #8e2a22' }}>准</span>
-              </div>
-            </div>
+            <svg viewBox="0 0 68 68" className="h-16 w-16" shapeRendering="crispEdges">
+              <g fill="#2b1c10" opacity=".45">{SEAL_SHADOW.map((r) => <rect key={r.y} x={r.x} y={r.y} width={r.w} height="4" />)}</g>
+              <g fill="#8e2a22">{SEAL_RIM.map((r) => <rect key={r.y} x={r.x} y={r.y} width={r.w} height="4" />)}</g>
+              <g fill="#d9483b">{SEAL_BODY.map((r) => <rect key={r.y} x={r.x} y={r.y} width={r.w} height="4" />)}</g>
+              <g fill="#ea6a5b" opacity=".8">{SEAL_HI.map((r) => <rect key={r.y} x={r.x} y={r.y} width={r.w} height="4" />)}</g>
+              {/* 印文四周的齿边 */}
+              {[[32, 10], [32, 50], [12, 30], [48, 30], [18, 16], [42, 16], [18, 44], [42, 44]].map(([x, y]) => (
+                <rect key={`${x}-${y}`} x={x} y={y} width="4" height="4" fill="#8e2a22" />
+              ))}
+              <text x="35" y="40" textAnchor="middle" fontSize="18" fill="#8e2a22" style={{ fontFamily: 'var(--font-pixel)' }}>准</text>
+              <text x="34" y="39" textAnchor="middle" fontSize="18" fill="#f6ecd3" style={{ fontFamily: 'var(--font-pixel)' }}>准</text>
+            </svg>
           </motion.div>
         ) : (
-          <motion.div key="pending" className="absolute inset-0 flex items-center justify-center rounded-full border-2 border-dashed border-paper-muted/60"
+          <motion.div key="pending" className="absolute inset-1 flex items-center justify-center border-2 border-dashed border-paper-muted/60"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <span className="pixel-text text-[12px] text-paper-muted">待封</span>
           </motion.div>

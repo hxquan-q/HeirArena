@@ -116,6 +116,63 @@ describe('useCourt SSE connection state', () => {
     close()
   })
 
+  it('applies a court evidence event once and updates the legal preview', () => {
+    const close = useCourt.getState().connect('seat-evidence')
+    const option = {
+      fact_key: 'main_support:daughter',
+      subject_id: 'daughter',
+      subject_name: '王小美',
+      subject_kind: 'member',
+      lever: 'main_support',
+      label: '证明王小美尽了主要扶养义务',
+      article: '1130',
+      delta_pct: 8,
+      direction: 'favorable',
+      evidence_types: ['住院陪护记录'],
+      burden: '由主张多分的一方举证',
+      note: '',
+    }
+    subscription.onEvent?.('session_start', {
+      agents: [{ id: 'daughter', name: '王小美', legal_percent: 40 }],
+      mode: 'mock',
+      model: 'scripted',
+      case: {
+        decedent_name: '老王',
+        story: '',
+        assets: [],
+        members: [{ id: 'daughter', name: '王小美', main_support: false }],
+        seat: { player_id: 'daughter', seat_human: true, goals: {}, advisor_model: null, strategy: null },
+      },
+      legal: { shares: [{ member_id: 'daughter', percent: 40 }] },
+      article_short: {},
+      seat: { player_id: 'daughter', seat_human: true },
+      evidence_options: [option],
+    })
+    expect(useCourt.getState().evidenceOptions[0]?.fact_key).toBe(option.fact_key)
+
+    const evidence = {
+      id: 'ev-1',
+      turn_key: 'statements:0:daughter',
+      submitted_by: 'daughter',
+      ...option,
+      evidence_type: '住院陪护记录',
+      note: '连续三年的陪护记录',
+      submitted_at: 1_700_000_000,
+      status: 'accepted_for_simulation',
+    }
+    const legal = { shares: [{ member_id: 'daughter', percent: 48 }] }
+    subscription.onEvent?.('evidence', { evidence, legal })
+    expect(useCourt.getState().submittedEvidence).toHaveLength(1)
+    expect(useCourt.getState().caseData?.members[0]?.main_support).toBe(true)
+    expect(useCourt.getState().legal?.shares[0]?.percent).toBe(48)
+    expect(useCourt.getState().agents[0]?.legal_percent).toBe(48)
+
+    subscription.onEvent?.('evidence', { evidence, legal })
+    expect(useCourt.getState().submittedEvidence).toHaveLength(1)
+    expect(useCourt.getState().caseData?.members[0]?.main_support).toBe(true)
+    close()
+  })
+
   it('stores debrief and ignores seat events on spectator sessions', () => {
     const close = useCourt.getState().connect('watch-1')
     subscription.onEvent?.('session_start', {

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -10,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .agents import Orchestrator, Session, build_session, export_markdown
 from .agents.court_graph import register_orchestrator, set_checkpointer
@@ -20,9 +22,9 @@ from .agents.restore import rebuild_orchestrator, rebuild_session, role_bindings
 from .case_parser import CaseParseError, CaseParseRequest, parse_case_document
 from .config import get_settings
 from .legal import ARTICLE_SHORT, ARTICLES, compute_legal_shares
-from .models import CaseInput, ModelRef
+from .models import CaseInput, CourtEvidence, ModelRef
 from .persist import init_engine, list_resumable_case_ids, persist_enabled, save_role_bindings, update_status
-from .seat import analyze, infer_goals
+from .seat import adjudicated_case, analyze, infer_goals, option_for
 from .providers import PRESETS, ProviderStore, ProviderUpsert, to_public
 
 SESSIONS: dict[str, Session] = {}
@@ -97,6 +99,14 @@ class SpeakBody(BaseModel):
     text: str | None = Field(default=None, max_length=500)
     meta: SpeakMeta | None = None
     delegate: bool = False
+
+
+class EvidenceBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    fact_key: str = Field(min_length=3, max_length=120)
+    evidence_type: str = Field(min_length=2, max_length=120)
+    note: str = Field(min_length=2, max_length=240)
 
 
 class TestBody(BaseModel):
@@ -540,6 +550,70 @@ async def regenerate_cards(session_id: str) -> dict:
     cards = await orch._cards_for(key, member, phase, round_no, focus)
     s.persist_snapshot(orch._extras())
     return {"ok": True, "cards": cards}
+
+
+@app.post("/api/sessions/{session_id}/evidence")
+async def submit_evidence(session_id: str, body: EvidenceBody) -> dict:
+    s = _get(session_id)
+    if s.seat is None or s.case.seat is None:
+        raise HTTPException(404, "旁观会话没有当事人举证席位")
+    async with s.speak_lock:
+        if s.status != "awaiting_player" or not s.seat.awaiting:
+            raise HTTPException(409, "只能在轮到你发言时提交庭上证据")
+        turn_key = str(s.seat.awaiting.get("turn_key") or "")
+        if any(item.get("turn_key") == turn_key for item in s.seat.evidence):
+            raise HTTPException(409, "本回合已经提交过一项证据")
+        if any(item.get("fact_key") == body.fact_key for item in s.seat.evidence):
+            raise HTTPException(409, "这项待证事实已经举证")
+
+        option = option_for(s.case, s.case.seat.player_id, body.fact_key)
+        if option is None:
+            raise HTTPException(422, "该事实不在本案可举证的 what-if 清单中")
+        evidence_type = body.evidence_type.strip()
+        if evidence_type not in option.evidence_types:
+            raise HTTPException(422, "材料类型不在该事实的举证清单中")
+        note = " ".join(body.note.split())
+        if len(note) < 2:
+            raise HTTPException(422, "请填写至少 2 个字的材料摘要")
+
+        record = CourtEvidence(
+            id=f"ev-{uuid.uuid4().hex[:10]}",
+            turn_key=turn_key,
+            submitted_by=s.case.seat.player_id,
+            fact_key=option.fact_key,
+            subject_id=option.subject_id,
+            subject_name=option.subject_name,
+            subject_kind=option.subject_kind,
+            lever=option.lever,
+            label=option.label,
+            article=option.article,
+            delta_pct=option.delta_pct,
+            direction=option.direction,
+            evidence_type=evidence_type,
+            note=note,
+            submitted_at=round(time.time(), 3),
+        )
+        dumped = record.model_dump()
+        s.seat.evidence.append(dumped)
+        orch = _ensure_orch(s)
+        try:
+            s.persist_snapshot(orch._extras())
+        except Exception:
+            s.seat.evidence.pop()
+            try:
+                s.persist_snapshot(orch._extras())
+            except Exception:
+                pass
+            raise
+
+        _effective_case, effective_legal, _records = adjudicated_case(
+            s.case,
+            s.case.seat.player_id,
+            s.seat.evidence,
+        )
+        payload = {"evidence": dumped, "legal": effective_legal.model_dump()}
+        s.emit("evidence", payload)
+        return {"ok": True, **payload}
 
 
 @app.post("/api/sessions/{session_id}/interject")

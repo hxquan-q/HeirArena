@@ -20,7 +20,13 @@ interface Props {
   onJumpToTurn?: (turnId: string) => void
 }
 
-const KIND_LABEL: Record<EvidenceKind | 'all', string> = { all: '全部', testimony: '当庭证言', asset: '遗产', fact: '卷宗事实' }
+const KIND_LABEL: Record<EvidenceKind | 'all', string> = {
+  all: '全部',
+  submission: '庭上举证',
+  testimony: '当庭证言',
+  asset: '遗产',
+  fact: '卷宗事实',
+}
 
 /** 证据宝箱：卷宗案情 + 全部证据卡牌的大图模式；出示证据时切成选卡模式。 */
 export default function EvidenceDrawer({ open, onOpenChange, cards, caseData, focusId, pickMode, pickCost, onPick, onJumpToTurn }: Props) {
@@ -66,7 +72,7 @@ export default function EvidenceDrawer({ open, onOpenChange, cards, caseData, fo
         )}
         <div className="mb-3">
           <PixelSegmented value={kind} onChange={(v) => setKind(v as EvidenceKind | 'all')} tone="gold" aria-label="证据类型"
-            options={(['all', 'testimony', 'asset', 'fact'] as const).map((k) => ({
+            options={(['all', 'submission', 'testimony', 'asset', 'fact'] as const).map((k) => ({
               value: k, label: `${KIND_LABEL[k]} ${k === 'all' ? cards.length : cards.filter((c) => c.kind === k).length}`,
             }))} />
         </div>
@@ -112,7 +118,7 @@ export default function EvidenceDrawer({ open, onOpenChange, cards, caseData, fo
                   </div>
                   {c.unlocked && (
                     <div className="mt-2 border-t border-dashed border-ink-700 pt-2 text-[11px] leading-relaxed text-ghost-300">
-                      <span className="mr-1 text-ink-400">幽灵台词 ·</span>{c.quip}
+                      <span className="mr-1 text-ink-400">{c.kind === 'submission' ? '材料摘要 ·' : '幽灵台词 ·'}</span>{c.quip}
                     </div>
                   )}
                   {!pickMode && c.turnIds.length > 0 && onJumpToTurn && (

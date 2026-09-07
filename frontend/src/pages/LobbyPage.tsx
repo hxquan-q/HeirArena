@@ -2,12 +2,14 @@ import { ParallaxPxlKitIcon, PxlKitIcon } from '@pxlkit/core'
 import { Coin, Key, Scroll, SpellBook } from '@pxlkit/gamification'
 import { GhostFriend, MagicOrb, PixelCrown, PixelHeart } from '@pxlkit/parallax'
 import { Gear } from '@pxlkit/ui'
+import { useMediaQuery } from '@pxlkit/ui-kit'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, BookOpen, Check, Clapperboard } from 'lucide-react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type ServerConfig } from '../api/client'
 import ProviderManager from '../components/ProviderManager'
+import Fireflies from '../components/scene/Fireflies'
 import { RoomBackground } from '../components/scene/Room'
 import SafeVoxelStage from '../components/scene3d/SafeVoxelStage'
 import { ModeBadge, SfxToggle } from '../components/ui/TopBar'
@@ -45,6 +47,9 @@ export default function LobbyPage() {
   const c = useCaseDraft((s) => s.c)
   const activePreset = useCaseDraft((s) => s.activePreset)
   const loadPreset = useCaseDraft((s) => s.loadPreset)
+
+  const narrow = useMediaQuery('(max-width: 40rem)', false)
+  const totemSize = narrow ? 140 : 200
 
   const [screen, setScreen] = useState<'menu' | 'episodes'>('menu')
   const [cursor, setCursor] = useState(0)
@@ -117,6 +122,7 @@ export default function LobbyPage() {
           <RoomBackground decedentName={c.decedent_name} />
         </div>
         <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_40%,rgba(23,18,15,.42),rgba(23,18,15,.92)_78%)]" />
+        <Fireflies count={18} />
         <div className="scanlines absolute inset-0 opacity-70" />
       </div>
 
@@ -131,7 +137,8 @@ export default function LobbyPage() {
 
       <main className="relative z-10 mx-auto grid w-full max-w-[1200px] flex-1 items-center gap-10 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-14 lg:py-0">
         {/* 标题区 */}
-        <section className="relative flex flex-col items-center text-center lg:items-start lg:text-left">
+        {/* 窄屏下标题块叠在明亮的护墙板上，垫一层半透明深色底保证可读 */}
+        <section className="relative flex flex-col items-center text-center max-lg:border-2 max-lg:border-ink-700/70 max-lg:bg-ink-950/60 max-lg:px-4 max-lg:py-5 lg:items-start lg:text-left">
           {/* 视差漂浮物：像素世界里的道具 */}
           <div className="pointer-events-none absolute inset-0 hidden lg:block" aria-hidden>
             <span className="absolute -top-6 left-[8%] opacity-80"><ParallaxPxlKitIcon icon={PixelCrown} size={34} strength={18} interactive appearance="palette" /></span>
@@ -142,11 +149,12 @@ export default function LobbyPage() {
             <span className="animate-float absolute top-[8%] left-[38%] opacity-60 [animation-delay:1.2s]"><PxlKitIcon icon={Key} size={22} /></span>
           </div>
 
-          <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="relative h-[200px] w-[200px]">
+          <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}
+            className="relative" style={{ width: totemSize, height: totemSize }}>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_55%,rgba(226,178,90,.28),transparent_62%)]" aria-hidden />
             <SafeVoxelStage
               icon={PixelGavel}
-              size={200}
+              size={totemSize}
               spin={0.4}
               bob={0.07}
               glow="rgba(226,178,90,.32)"
@@ -154,14 +162,15 @@ export default function LobbyPage() {
             />
           </motion.div>
 
+          {/* 标题按视口宽度流式缩放：手机 40px 起，宽屏封顶 72px，不再在 390px 宽下被裁掉 */}
           <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08 }}
-            className="pixel-text mt-2 leading-none">
-            <span className="gold-text block text-[56px] tracking-[0.06em] sm:text-[72px]" style={{ filter: 'drop-shadow(4px 4px 0 rgba(0,0,0,.7))' }}>HEIR ARENA</span>
-            <span className="mt-2 block text-[26px] tracking-[0.3em] text-ink-100 sm:text-[30px]" style={{ textShadow: '3px 3px 0 rgba(0,0,0,.7)' }}>遗 产 竞 技 场</span>
+            className="pixel-text mt-2 max-w-full leading-none">
+            <span className="gold-text block text-[clamp(40px,11vw,72px)] tracking-[0.06em]" style={{ filter: 'drop-shadow(4px 4px 0 rgba(0,0,0,.7))' }}>HEIR ARENA</span>
+            <span className="mt-2 block text-[clamp(20px,5.5vw,30px)] tracking-[0.3em] text-ink-100" style={{ textShadow: '3px 3px 0 rgba(0,0,0,.7)' }}>遗 产 竞 技 场</span>
           </motion.h1>
 
           <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.2 }}
-            className="mt-5 max-w-[520px] text-[14px] leading-7 text-ink-200" style={{ textShadow: '1px 1px 0 rgba(0,0,0,.8)' }}>
+            className="mt-5 max-w-[520px] text-[13px] leading-6 text-ink-200 sm:text-[14px] sm:leading-7" style={{ textShadow: '1px 1px 0 rgba(0,0,0,.8)' }}>
             写下身后事，让 AI 继承人在像素听证庭里陈述、交锋、结盟；遗嘱执行官依《民法典》落槌，每一条裁决都能溯源。
           </motion.p>
 
@@ -178,7 +187,7 @@ export default function LobbyPage() {
           <AnimatePresence mode="wait" initial={false}>
             {screen === 'menu' ? (
               <motion.div key="menu" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }} transition={{ duration: 0.22 }}
-                className="panel-elevated p-2">
+                className="panel-wood bg-ink-800 p-2">
                 <div className="flex items-center justify-between border-b-2 border-ink-700 px-3 py-2">
                   <span className="pixel-text text-[12px] tracking-[0.14em] text-gold-400">MAIN MENU · 主菜单</span>
                   <span className="pixel-text text-[12px] text-ink-400">{cursor + 1}/{MENU.length}</span>
@@ -206,7 +215,7 @@ export default function LobbyPage() {
               </motion.div>
             ) : (
               <motion.div key="episodes" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }} transition={{ duration: 0.22 }}
-                className="panel-elevated p-2">
+                className="panel-wood bg-ink-800 p-2">
                 <div className="flex items-center justify-between border-b-2 border-ink-700 px-3 py-2">
                   <span className="pixel-text text-[12px] tracking-[0.14em] text-gold-400">EPISODE SELECT · 选择剧本</span>
                   <button type="button" className="btn-ghost h-7 px-2 text-[11px]" onClick={backToMenu}><ArrowLeft size={12} /> 返回</button>

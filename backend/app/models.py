@@ -112,6 +112,8 @@ SoftGoalKind = Literal["keep_relation", "pet_custody", "keep_residence", "recogn
 ThreatLevel = Literal["high", "medium", "low", "none"]
 Confidence = Literal["high", "medium", "low", "abstain"]
 ScorePartKey = Literal["target_assets", "min_share", "red_lines", "soft_goals"]
+EvidenceDirection = Literal["favorable", "adverse"]
+EvidenceSubjectKind = Literal["member", "asset"]
 
 
 class RedLine(_Strict):
@@ -187,6 +189,40 @@ class WhatIfDelta(_Strict):
     delta_pct: float
     direction: Literal["favorable", "adverse"]
     evidence: list[str] = Field(default_factory=list)
+
+
+class CourtEvidenceOption(_Strict):
+    fact_key: str
+    subject_id: str
+    subject_name: str
+    subject_kind: EvidenceSubjectKind
+    lever: str
+    label: str
+    article: str
+    delta_pct: float
+    direction: EvidenceDirection
+    evidence_types: list[str] = Field(min_length=1)
+    burden: str
+    note: str = ""
+
+
+class CourtEvidence(_Strict):
+    id: str
+    turn_key: str
+    submitted_by: str
+    fact_key: str
+    subject_id: str
+    subject_name: str
+    subject_kind: EvidenceSubjectKind
+    lever: str
+    label: str
+    article: str
+    delta_pct: float
+    direction: EvidenceDirection
+    evidence_type: str
+    note: str = Field(min_length=2, max_length=240)
+    submitted_at: float
+    status: Literal["accepted_for_simulation"] = "accepted_for_simulation"
 
 
 class Reachability(_Strict):
@@ -385,7 +421,11 @@ __all__ = [
     "BriefItem",
     "CaseInput",
     "CoalitionRow",
+    "CourtEvidence",
+    "CourtEvidenceOption",
     "DIVISIBLE_TYPES",
+    "EvidenceDirection",
+    "EvidenceSubjectKind",
     "EquilibriumRow",
     "GameTables",
     "Goals",

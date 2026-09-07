@@ -1,5 +1,6 @@
 import type {
-  AgentSpec, CaseInput, LegalResult, ModelRef, PlayerSpeech, Provider, ProviderPreset, SeatAnalysis, StrategyPack,
+  AgentSpec, CaseInput, CourtEvidence, LegalResult, ModelRef, PlayerSpeech, Provider, ProviderPreset, SeatAnalysis,
+  StrategyPack,
 } from '../types'
 
 async function json<T>(res: Response): Promise<T> {
@@ -91,12 +92,15 @@ export const api = {
     fetch(`/api/sessions/${id}/speak`, jsonInit('POST', body)).then((r) => json<{ ok: boolean }>(r)),
   regenerateCards: (id: string) =>
     fetch(`/api/sessions/${id}/cards`, { method: 'POST' }).then((r) => json<{ ok: boolean }>(r)),
+  submitEvidence: (id: string, body: { fact_key: string; evidence_type: string; note: string }) =>
+    fetch(`/api/sessions/${id}/evidence`, jsonInit('POST', body))
+      .then((r) => json<{ ok: boolean; evidence: CourtEvidence; legal: LegalResult }>(r)),
 }
 
 export const SSE_EVENTS = [
   'session_start', 'phase', 'focus', 'agent_status', 'speech_start', 'speech_delta', 'speech_end',
   'relation', 'reaction', 'ghost', 'notice', 'gavel', 'verdict', 'done', 'error',
-  'seat', 'awaiting_player', 'cards', 'debrief',
+  'seat', 'awaiting_player', 'cards', 'evidence', 'debrief',
 ] as const
 
 export type SseEventType = (typeof SSE_EVENTS)[number]

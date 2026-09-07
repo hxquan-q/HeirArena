@@ -7,8 +7,13 @@ interface Props {
   onOpen: (cardId?: string) => void
 }
 
-const KIND_LABEL: Record<EvidenceCard['kind'], string> = { testimony: '证言', asset: '资产', fact: '事实' }
-const KIND_TONE: Record<EvidenceCard['kind'], string> = { testimony: '#7fd9ad', asset: '#e2b25a', fact: '#a58bff' }
+const KIND_LABEL: Record<EvidenceCard['kind'], string> = { submission: '举证', testimony: '证言', asset: '资产', fact: '事实' }
+const KIND_TONE: Record<EvidenceCard['kind'], string> = {
+  submission: '#f3d38a',
+  testimony: '#7fd9ad',
+  asset: '#e2b25a',
+  fact: '#a58bff',
+}
 
 /** 左侧证据卡牌：紧凑列表，权重条 + 解锁状态，点一张在宝箱里放大看。 */
 export default function EvidenceRail({ cards, seen, onOpen }: Props) {

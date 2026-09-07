@@ -77,8 +77,11 @@
   --animate-shake: shake 0.45s steps(5);
   --animate-pulse-ring: pulse-ring 1.4s steps(6) infinite;
   --animate-spin-slow: spin 6s linear infinite;
+  --animate-spin-step: spin 1s steps(8) infinite;
   --animate-blink: blink 4s infinite;
-  --animate-dash: dash 1.2s linear infinite;
+  --animate-eyelid: eyelid 4s steps(1, end) infinite;
+  /* 虚线周期 24 = 12 实 + 12 空，6 步走完一个周期，每步跳 4px */
+  --animate-dash: dash 0.9s steps(6) infinite;
   --animate-caret: caret 0.9s steps(2) infinite;
   --animate-rise: rise 2.2s steps(12) forwards;
   --animate-glitch: glitch 2.6s steps(1) infinite;
@@ -87,6 +90,7 @@
   --animate-stamp: stamp 0.5s cubic-bezier(.2,1.6,.4,1) both;
   --animate-marquee: marquee 18s linear infinite;
   --animate-blink-step: blink-step 1s steps(2) infinite;
+  --animate-firefly: firefly 7s steps(14) infinite;
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
@@ -113,6 +117,11 @@
   @keyframes blink {
     0%, 92%, 100% { transform: scaleY(1); }
     95% { transform: scaleY(0.1); }
+  }
+  /* 像素眨眼：眼皮色块只在 93%–97% 这一帧出现 */
+  @keyframes eyelid {
+    0%, 93%, 97%, 100% { opacity: 0; }
+    93.01%, 96.99% { opacity: 1; }
   }
   @keyframes dash {
     to { stroke-dashoffset: -24; }
@@ -149,6 +158,16 @@
   }
   @keyframes blink-step {
     50% { opacity: 0; }
+  }
+  /* 萤火：一格一格往上飘，中途忽明忽暗 */
+  @keyframes firefly {
+    0% { transform: translate(0, 0); opacity: 0; }
+    12% { opacity: .95; }
+    30% { transform: translate(8px, -14px); opacity: .35; }
+    48% { transform: translate(4px, -26px); opacity: .9; }
+    66% { transform: translate(-6px, -38px); opacity: .3; }
+    84% { transform: translate(-2px, -50px); opacity: .85; }
+    100% { transform: translate(6px, -64px); opacity: 0; }
   }
 }
 
@@ -286,8 +305,23 @@ button, select, label {
   -webkit-tap-highlight-color: transparent;
 }
 
-button:not(:disabled) {
-  cursor: pointer;
+/* 像素鼠标指针（public/cursor-*.svg，由 scripts/gen-cursors.mjs 生成）：
+ * 箭头热点在左上尖端，手型热点在食指尖；文本框保留系统 I 型光标。 */
+html {
+  cursor: url('/cursor-arrow.svg') 1 1, auto;
+}
+a, button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [role="menuitem"], [role="option"], [role="tab"],
+select, summary, label[for], input[type="checkbox"], input[type="radio"], input[type="range"], input[type="file"] {
+  cursor: url('/cursor-hand.svg') 9 1, pointer;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea {
+  cursor: text;
+}
+button:disabled, [aria-disabled="true"] {
+  cursor: url('/cursor-arrow.svg') 1 1, not-allowed;
+}
+.cursor-pointer {
+  cursor: url('/cursor-hand.svg') 9 1, pointer;
 }
 
 ::selection {
@@ -328,6 +362,30 @@ svg text { image-rendering: auto; }
   box-shadow:
     inset 0 0 0 1px rgba(243, 211, 138, 0.12),
     4px 4px 0 0 rgba(0, 0, 0, 0.6);
+}
+
+/* 星露谷式木框：6px 斜面木边（左上受光、右下背光）+ 外圈 1 格深色描边 + 四角黄铜铆钉 + 硬阴影。
+ * 尺寸与 CourtroomScene 里的 FRAME_BORDER / FRAME_RING 对应；不设背景色，由调用方决定。 */
+@utility panel-wood {
+  position: relative;
+  border: 6px solid;
+  border-color: #8a5a34 #4a2e1b #4a2e1b #8a5a34;
+  border-radius: 0;
+  box-shadow:
+    0 0 0 2px #1e130b,
+    0 0 0 4px #5c3a21,
+    0 0 0 6px #1e130b,
+    6px 6px 0 6px rgba(0, 0, 0, 0.55);
+  background-image:
+    linear-gradient(#f1d28f, #f1d28f),
+    linear-gradient(#f1d28f, #f1d28f),
+    linear-gradient(#f1d28f, #f1d28f),
+    linear-gradient(#f1d28f, #f1d28f);
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+  background-position: 0 0, 100% 0, 0 100%, 100% 100%;
+  background-origin: border-box;
+  background-clip: border-box;
 }
 
 /* 凹陷的槽位 */

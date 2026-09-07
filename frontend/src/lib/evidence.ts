@@ -1,8 +1,8 @@
 import { ASSET_EMOJI } from '../data/presets'
-import type { AgentSpec, CaseInput, Member, Turn } from '../types'
+import type { AgentSpec, CaseInput, CourtEvidence, Member, Turn } from '../types'
 import { contestedAssets, latestClaims } from './prediction'
 
-export type EvidenceKind = 'asset' | 'fact' | 'testimony'
+export type EvidenceKind = 'asset' | 'fact' | 'testimony' | 'submission'
 
 export interface EvidenceCard {
   id: string
@@ -50,8 +50,14 @@ function assetQuip(c: CaseInput, a: CaseInput['assets'][number]): string {
  * - 资产卡：被点名或被主张后解锁，热度随争夺升温
  * - 事实卡：卷宗登记的法律事实，被他人当庭承认时加权
  * - 证言卡：当庭自认 / 放弃 / 承认他人扶养，即时解锁
+ * - 举证卡：玩家从庭前 what-if 清单提交、由后端规则采信的结构化材料
  */
-export function buildEvidence(caseData: CaseInput, turns: Turn[], agents: AgentSpec[]): EvidenceCard[] {
+export function buildEvidence(
+  caseData: CaseInput,
+  turns: Turn[],
+  agents: AgentSpec[],
+  submitted: CourtEvidence[] = [],
+): EvidenceCard[] {
   const nameOf = (id: string) => agents.find((a) => a.id === id)?.name ?? caseData.members.find((m) => m.id === id)?.name ?? id
   const done = turns.filter((t) => t.done)
   const claims = latestClaims(done)
@@ -130,7 +136,24 @@ export function buildEvidence(caseData: CaseInput, turns: Turn[], agents: AgentS
     }
   }
 
+  const submissions: EvidenceCard[] = submitted.map((item) => ({
+    id: `submission:${item.id}`,
+    kind: 'submission',
+    memberId: item.subject_kind === 'member' ? item.subject_id : item.submitted_by,
+    assetId: item.subject_kind === 'asset' ? item.subject_id : undefined,
+    article: item.article,
+    emoji: '🧾',
+    title: item.label,
+    subtitle: `${item.evidence_type} · 本次沙盘采信`,
+    unlocked: true,
+    weight: 100,
+    turnIds: [],
+    unlockedAt: item.submitted_at < 10_000_000_000 ? item.submitted_at * 1000 : item.submitted_at,
+    quip: item.note,
+  }))
+
   return [
+    ...submissions.sort((a, b) => (b.unlockedAt ?? 0) - (a.unlockedAt ?? 0)),
     ...testimonies.sort((a, b) => (b.unlockedAt ?? 0) - (a.unlockedAt ?? 0)),
     ...assets.sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || b.weight - a.weight),
     ...facts.sort((a, b) => b.weight - a.weight),

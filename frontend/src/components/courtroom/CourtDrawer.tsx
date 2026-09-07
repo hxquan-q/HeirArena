@@ -99,7 +99,7 @@ export default function CourtDrawer({ open, side, title, badge, onClose, childre
         <>
           <motion.div
             aria-hidden
-            className="fixed inset-0 z-[90] cursor-default bg-black/65 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[90] cursor-default bg-ink-950/75"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

@@ -59,7 +59,7 @@ export default function SeatBriefPanel({ onJumpToTurn, onUseCard }: Props) {
         />
       )}
 
-      <div className={showDebrief ? 'border-t border-white/8 pt-3' : ''}>
+      <div className={showDebrief ? 'border-t-2 border-ink-700 pt-3' : ''}>
         <div className="mb-2 flex items-center gap-2">
           {me && <CharacterPortrait agent={me} status="idle" size={48} animated={false} />}
           <div className="min-w-0">
@@ -82,8 +82,8 @@ export default function SeatBriefPanel({ onJumpToTurn, onUseCard }: Props) {
         {openSections.length > 0 && (
           <div className="mt-3 space-y-2">
             {openSections.map((section) => (
-              <div key={section.id} className="rounded-lg border border-white/8 bg-black/15 px-3 py-2">
-                <div className="mb-1 text-[11px] font-semibold text-gold-300">{section.title}</div>
+              <div key={section.id} className="panel-inset px-3 py-2">
+                <div className="pixel-text mb-1 text-[12px] text-gold-300">{section.title}</div>
                 {section.content}
               </div>
             ))}

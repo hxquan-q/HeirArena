@@ -126,6 +126,43 @@ export interface WhatIfDelta {
   evidence: string[]
 }
 
+export type EvidenceDirection = 'favorable' | 'adverse'
+export type EvidenceSubjectKind = 'member' | 'asset'
+
+export interface CourtEvidenceOption {
+  fact_key: string
+  subject_id: string
+  subject_name: string
+  subject_kind: EvidenceSubjectKind
+  lever: string
+  label: string
+  article: string
+  delta_pct: number
+  direction: EvidenceDirection
+  evidence_types: string[]
+  burden: string
+  note: string
+}
+
+export interface CourtEvidence {
+  id: string
+  turn_key: string
+  submitted_by: string
+  fact_key: string
+  subject_id: string
+  subject_name: string
+  subject_kind: EvidenceSubjectKind
+  lever: string
+  label: string
+  article: string
+  delta_pct: number
+  direction: EvidenceDirection
+  evidence_type: string
+  note: string
+  submitted_at: number
+  status: 'accepted_for_simulation'
+}
+
 export interface Reachability {
   legal_pct: number
   low: number
@@ -395,6 +432,8 @@ export interface Verdict {
   value_shares: Record<string, number>
   member_value: Record<string, number>
   legal_percent: Record<string, number>
+  original_legal_percent?: Record<string, number> | null
+  evidence?: CourtEvidence[]
   adjustments: { member_id: string; reason: string; article?: string; delta?: number; turn_ids?: string[] }[]
   established_facts?: EstablishedFact[]
   open_questions?: string[]
@@ -409,10 +448,13 @@ export interface Verdict {
 
 export interface EstablishedFact {
   member_id: string
-  kind: 'admit_neglect' | 'waive_share' | 'concede' | 'support_confirmed'
+  subject_id?: string
+  kind: 'admit_neglect' | 'waive_share' | 'concede' | 'support_confirmed' | 'main_support' | 'cohabit' | 'hardship' | 'neglect' | 'dependency' | 'joint'
   article: string
   text: string
   turn_ids: string[]
+  evidence_ids?: string[]
+  source?: 'evidence'
 }
 
 export interface SpeechCard {

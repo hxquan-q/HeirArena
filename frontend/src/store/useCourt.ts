@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { subscribe, type SseEventType } from '../api/client'
+import { applyWhatIfKey } from '../lib/seat'
 import { sfx } from '../lib/sfx'
 import type {
-  AgentSpec, AgentStatus, AwaitingInfo, CaseInput, Debrief, DoneStats, LegalResult, Phase, Reaction,
-  RelationEdge, SpeechCard, StrategyPack, Turn, TurnMeta, Verdict,
+  AgentSpec, AgentStatus, AwaitingInfo, CaseInput, CourtEvidence, CourtEvidenceOption, Debrief, DoneStats,
+  LegalResult, Phase, Reaction, RelationEdge, SpeechCard, StrategyPack, Turn, TurnMeta, Verdict,
 } from '../types'
 
 export interface PhaseState {
@@ -53,6 +54,8 @@ interface CourtState {
   awaiting: AwaitingInfo | null
   cards: SpeechCard[]
   cardsPending: boolean
+  evidenceOptions: CourtEvidenceOption[]
+  submittedEvidence: CourtEvidence[]
   debrief: Debrief | null
   connect: (sessionId: string) => () => void
   reset: () => void
@@ -64,7 +67,8 @@ const initial = {
   articleShort: {}, statuses: {}, phase: null, phaseHistory: [], focusIssues: [], paused: false, startedAt: null, turns: [],
   activeTurnId: null, relations: [], relationLog: [],
   reactions: {}, ghosts: [], notices: [], verdict: null, verdictAt: null, gavelAt: null, done: null, error: null,
-  seat: null, strategy: null, awaiting: null, cards: [], cardsPending: false, debrief: null,
+  seat: null, strategy: null, awaiting: null, cards: [], cardsPending: false,
+  evidenceOptions: [], submittedEvidence: [], debrief: null,
 }
 
 const moodTimers: Record<string, ReturnType<typeof setTimeout>> = {}
@@ -109,6 +113,7 @@ export const useCourt = create<CourtState>((set, get) => ({
             startedAt: Date.now(),
             seat,
             strategy: cfg?.strategy ?? null,
+            evidenceOptions: (d.evidence_options as CourtEvidenceOption[]) ?? [],
           })
           break
         }
@@ -242,6 +247,24 @@ export const useCourt = create<CourtState>((set, get) => ({
         case 'cards':
           set({ cards: (d.cards as SpeechCard[]) ?? [], cardsPending: false })
           break
+        case 'evidence': {
+          const evidence = d.evidence as CourtEvidence
+          const legal = d.legal as LegalResult
+          set((s) => {
+            if (!evidence?.id || s.submittedEvidence.some((item) => item.id === evidence.id)) return {}
+            const percent = Object.fromEntries((legal?.shares ?? []).map((row) => [row.member_id, row.percent]))
+            return {
+              submittedEvidence: [...s.submittedEvidence, evidence],
+              caseData: s.caseData ? applyWhatIfKey(s.caseData, evidence.fact_key) : s.caseData,
+              legal: legal ?? s.legal,
+              agents: s.agents.map((agent) => (
+                Object.hasOwn(percent, agent.id) ? { ...agent, legal_percent: percent[agent.id] } : agent
+              )),
+            }
+          })
+          sfx('coin')
+          break
+        }
         case 'debrief':
           set({
             debrief: {
